@@ -256,7 +256,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <body>
     <div class="blog-container">
         <div class="delete-account-btn-wrapper">
-            <a class="delete-account-btn" href="http://localhost/project/delete_account.php">Delete Account</a>
+            <a class="delete-account-btn" href="delete_account.php">Delete Account</a>
         </div>
 
         <h2 id="form-title">Create a New Blog Post</h2>
@@ -331,10 +331,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             <div class="footer-section links">
                 <h2>Quick Links</h2>
                 <ul>
-                    <li><a href="http://localhost/project/index.html">Home</a></li>
+                    <li><a href="index.html">Home</a></li>
                     <li><a href="#services">Services</a></li>
                     <li><a href="#contact">Contact</a></li>
-                    <li><a href="http://localhost/project/about.html">About</a></li>
+                    <li><a href="about.html">About</a></li>
                 </ul>
             </div>
             <div class="footer-section contact">

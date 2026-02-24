@@ -15,7 +15,7 @@
         <?php if (isset($_GET['error'])): ?>
             <div class="error-message"><?php echo htmlspecialchars($_GET['error']); ?></div>
         <?php endif; ?>
-        <form action="http://localhost/project/login.php" method="post">
+        <form action="login.php" method="post">
             <div class="form-group">
                 <label for="email">Email:</label>
                 <input type="email" id="email" name="email" autocomplete="new-email" required>
@@ -27,8 +27,8 @@
             <button type="submit">Login</button>
         </form>
         <!-- http://127.0.0.1:5000 -->
-        <div class="options">
-            <a href="http://127.0.0.1:5000" id="create-account">Create a New Account</a>
+            <div class="options">
+            <a href="index.html" id="create-account">Create a New Account</a>
             <span class="separator"> </span>
             <br>
             <a href="Forgot-Password.html" id="forgot-password">Forgot Password</a>
@@ -44,10 +44,10 @@
             <div class="footer-section links">
                 <h2>Quick Links</h2>
                 <ul>
-                    <li><a href="http://localhost/project/index.html">Home</a></li>
+                    <li><a href="index.html">Home</a></li>
                     <li><a href="#">Services</a></li>
-                    <li><a href="http://localhost/project/contact.php">Contact</a></li>
-                    <li><a href="http://localhost/project/about.php">About</a></li>
+                    <li><a href="contact.php">Contact</a></li>
+                    <li><a href="about.php">About</a></li>
                 </ul>
             </div>
             <div class="footer-section contact">

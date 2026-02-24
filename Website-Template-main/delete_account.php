@@ -99,10 +99,10 @@ if (!isset($_SESSION['user_id'])) {
                 <div class="footer-section links">
                     <h2>Quick Links</h2>
                     <ul>
-                        <li><a href="http://localhost/project/index.html">Home</a></li>
+                        <li><a href="index.html">Home</a></li>
                         <li><a href="#">Services</a></li>
                         <li><a href="#">Contact</a></li>
-                        <li><a href="http://localhost/project/about.php">About</a></li>
+                        <li><a href="about.php">About</a></li>
                     </ul>
                 </div>
                 <div class="footer-section contact">

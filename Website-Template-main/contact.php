@@ -39,10 +39,10 @@
             <div class="footer-section links">
                 <h2>Quick Links</h2>
                 <ul>
-                    <li><a href="http://localhost/project/index.html">Home</a></li>
+                    <li><a href="index.html">Home</a></li>
                     <li><a href="#services">Services</a></li>
-                    <li><a href="http://localhost/project/contact.php">Contact</a></li>
-                    <li><a href="http://localhost/project/about.html">About</a></li>
+                    <li><a href="contact.php">Contact</a></li>
+                    <li><a href="about.html">About</a></li>
                 </ul>
             </div>
             <div class="footer-section contact">
