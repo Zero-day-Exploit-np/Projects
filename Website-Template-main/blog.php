@@ -144,6 +144,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 ?>
 <!DOCTYPE html>
 <html>
+
 <head>
     <title>Blog</title>
     <link rel="stylesheet" href="blog.css">
@@ -151,58 +152,73 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         body {
             margin: 0;
         }
+
         footer {
             background: #333;
             color: #fff;
             padding: 20px 0;
             text-align: center;
         }
+
         p {
             margin-bottom: 2rem;
             line-height: 2;
             color: #7f8c8d;
         }
+
         .footer-content {
             display: flex;
             justify-content: space-around;
             max-width: 1200px;
             margin: auto;
         }
+
         .footer-section {
             flex: 1;
             padding: 10px;
         }
+
         .footer-section h2 {
             color: aliceblue;
             margin-top: 0;
             font-size: 18px;
         }
-        .footer-section p, .footer-section ul, .footer-section li {
+
+        .footer-section p,
+        .footer-section ul,
+        .footer-section li {
             margin: 0;
             padding: 0;
             list-style: none;
         }
+
         .footer-section ul {
             padding-top: 10px;
         }
+
         .footer-section ul li {
             margin-bottom: 10px;
         }
+
         .footer-section ul li a {
             color: #fff;
             text-decoration: none;
         }
+
         .footer-section ul li a:hover {
             text-decoration: underline;
         }
+
         .footer-link {
             color: azure;
             text-decoration: none;
             transition: all 0.3s ease;
         }
+
         .footer-link:hover {
             text-decoration: underline;
         }
+
         .footer-bottom {
             margin-top: 20px;
             font-size: 14px;
@@ -213,11 +229,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         .delete-account-btn-wrapper {
             display: flex;
             justify-content: flex-end;
-            margin-bottom: 10px; /* Adjust as needed */
+            margin-bottom: 10px;
+            /* Adjust as needed */
         }
 
         .delete-account-btn {
-            background-color: #f44336; /* Red */
+            background-color: #f44336;
+            /* Red */
             color: white;
             padding: 10px 20px;
             border: none;
@@ -228,19 +246,20 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
 
         .delete-account-btn:hover {
-            background-color: #d32f2f; /* Darker red */
+            background-color: #d32f2f;
+            /* Darker red */
         }
-    
     </style>
-   
+
 </head>
+
 <body>
     <div class="blog-container">
-    <div class="delete-account-btn-wrapper">
+        <div class="delete-account-btn-wrapper">
             <a class="delete-account-btn" href="http://localhost/project/delete_account.php">Delete Account</a>
         </div>
 
-    <h2 id="form-title">Create a New Blog Post</h2>
+        <h2 id="form-title">Create a New Blog Post</h2>
         <p>Welcome, <?php echo htmlspecialchars($fullname); ?>! <a href="logout.php">Logout</a></p>
         <form method="post" action="blog.php" enctype="multipart/form-data">
             <input type="hidden" name="post_id" id="post_id" value="">
@@ -261,7 +280,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         <h2>Existing Blog Posts</h2>
         <?php
         if ($result->num_rows > 0) {
-            while($row = $result->fetch_assoc()) {
+            while ($row = $result->fetch_assoc()) {
                 echo "<div>";
                 echo "<h3>" . htmlspecialchars($row["title"]) . "</h3>";
                 if (!empty($row["image"])) {
@@ -283,24 +302,24 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     </div>
 
     <script>
-    document.addEventListener("DOMContentLoaded", function() {
-        let editLinks = document.querySelectorAll(".edit-link");
-        editLinks.forEach(function(link) {
-            link.addEventListener("click", function(e) {
-                e.preventDefault();
-                let postId = link.getAttribute("data-id");
-                let title = link.getAttribute("data-title");
-                let content = link.getAttribute("data-content");
-                
-                document.getElementById("post_id").value = postId;
-                document.getElementById("title").value = title;
-                document.getElementById("content").value = content;
+        document.addEventListener("DOMContentLoaded", function() {
+            let editLinks = document.querySelectorAll(".edit-link");
+            editLinks.forEach(function(link) {
+                link.addEventListener("click", function(e) {
+                    e.preventDefault();
+                    let postId = link.getAttribute("data-id");
+                    let title = link.getAttribute("data-title");
+                    let content = link.getAttribute("data-content");
 
-                document.getElementById("form-title").textContent = "Edit Blog Post";
-                document.querySelector("form button").textContent = "Update";
+                    document.getElementById("post_id").value = postId;
+                    document.getElementById("title").value = title;
+                    document.getElementById("content").value = content;
+
+                    document.getElementById("form-title").textContent = "Edit Blog Post";
+                    document.querySelector("form button").textContent = "Update";
+                });
             });
         });
-    });
     </script>
 
     <footer>
@@ -312,7 +331,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             <div class="footer-section links">
                 <h2>Quick Links</h2>
                 <ul>
-                    <li><a href="http://localhost/project/index.php">Home</a></li>
+                    <li><a href="http://localhost/project/index.html">Home</a></li>
                     <li><a href="#services">Services</a></li>
                     <li><a href="#contact">Contact</a></li>
                     <li><a href="http://localhost/project/about.html">About</a></li>
@@ -326,10 +345,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 <p><a href="https://www.facebook.com/sonukarn.org.np" class="footer-link">Facebook</a></p>
                 <p><a href="https://www.instagram.com/sonu_s.o.n.u" class="footer-link">Instagram</a></p>
             </div>
-        </div>      
+        </div>
         <div class="footer-bottom">
             &copy; 2024 YourCompanyName. All rights reserved.
         </div>
     </footer>
 </body>
+
 </html>

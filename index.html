@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -12,29 +13,29 @@
             background-color: #f5f5f5;
             line-height: 1.6;
         }
-        
+
         .container {
             max-width: 800px;
             margin: 0 auto;
             background-color: white;
             padding: 30px;
             border-radius: 10px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
         }
-        
+
         h1 {
             text-align: center;
             color: #333;
             margin-bottom: 30px;
         }
-        
+
         .projects-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
             gap: 20px;
             margin-top: 30px;
         }
-        
+
         .project-card {
             background-color: #f8f9fa;
             padding: 20px;
@@ -42,23 +43,23 @@
             border: 1px solid #e9ecef;
             transition: transform 0.2s, box-shadow 0.2s;
         }
-        
+
         .project-card:hover {
             transform: translateY(-2px);
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
         }
-        
+
         .project-card h3 {
             margin-top: 0;
             color: #495057;
             font-size: 1.2em;
         }
-        
+
         .project-card p {
             color: #6c757d;
             margin: 10px 0;
         }
-        
+
         .project-link {
             display: inline-block;
             background-color: #007bff;
@@ -68,7 +69,7 @@
             border-radius: 5px;
             transition: background-color 0.2s;
         }
-        
+
         .project-link:hover {
             background-color: #0056b3;
             color: white;
@@ -76,31 +77,34 @@
         }
     </style>
 </head>
+
 <body>
     <div class="container">
         <h1>Shortest-Path</h1>
         <p style="text-align: center; color: #6c757d; font-size: 1.1em;">
         </p>
-       <div class="projects-grid">
-            <div class="project-card">
-                <h3>Shortest-Path</h3>
-                <p> The Shortest Path Finder is a real-world DSA-based web application that calculates the shortest route between two locations using live map data.</p>
-                <a href="Shortest_path/frontend/index.html" class="project-link">View Project</a>
-            </div>
-        
         <div class="projects-grid">
             <div class="project-card">
-                <h3>Finger_Movement</h3>
-                <p>A real-time finger counting app using Mediapipe and OpenCV</p>
-                <a href="finger_count-main/finger.py" class="project-link">View Project</a>
+                <h3>Shortest-Path</h3>
+                <p> The Shortest Path Finder is a real-world DSA-based web application that calculates the shortest
+                    route between two locations using live map data.</p>
+                <a href="Shortest_path/frontend/index.html" class="project-link">View Project</a>
             </div>
-            
-            <div class="project-card">
-                <h3>Website-Template</h3>
-                <p></p>
-                <a href="Website-Template-main/index.php" class="project-link">View Project</a>
+
+            <div class="projects-grid">
+                <div class="project-card">
+                    <h3>Finger_Movement</h3>
+                    <p>A real-time finger counting app using Mediapipe and OpenCV</p>
+                    <a href="finger_count-main/finger.py" class="project-link">View Project</a>
+                </div>
+
+                <div class="project-card">
+                    <h3>Website-Template</h3>
+                    <p></p>
+                    <a href="Website-Template-main/index.html" class="project-link">View Project</a>
+                </div>
             </div>
         </div>
-    </div>
 </body>
+
 </html>

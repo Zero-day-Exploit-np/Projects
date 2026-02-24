@@ -44,7 +44,7 @@
             <div class="footer-section links">
                 <h2>Quick Links</h2>
                 <ul>
-                    <li><a href="http://localhost/project/index.php">Home</a></li>
+                    <li><a href="http://localhost/project/index.html">Home</a></li>
                     <li><a href="#">Services</a></li>
                     <li><a href="http://localhost/project/contact.php">Contact</a></li>
                     <li><a href="http://localhost/project/about.php">About</a></li>
@@ -58,7 +58,7 @@
                 <p><a href="https://www.facebook.com/sonukarn.org.np" class="footer-link">Facebook</a></p>
                 <p><a href="https://www.instagram.com/sonu_s.o.n.u" class="footer-link">Instagram</a></p>
             </div>
-        </div>      
+        </div>
 
         <div class="footer-bottom">
             &copy; 2024 YourCompanyName. All rights reserved.
@@ -118,7 +118,7 @@
         <div class="footer-section links">
             <h2>Quick Links</h2>
             <ul>
-                <li><a href="http://localhost/project/index.php">Home</a></li>
+                <li><a href="http://localhost/project/index.html">Home</a></li>
                 <li><a href="#">Services</a></li>
                 <li><a href="#">Contact</a></li>
                 <li><a href="http://localhost/project/about.php">About</a></li>
