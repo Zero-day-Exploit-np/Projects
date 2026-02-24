@@ -1,0 +1,146 @@
+
+p {
+  margin-bottom: 2rem;
+  line-height: 2;
+  color: #7f8c8d;
+}
+
+body {
+
+  margin: 0;
+    background-color: #ecf0f1;
+    font-family: helvetica, arial, sans-serif;
+    font-size: 16px;
+    -moz-transition: padding-top 0.5s ease;
+    -o-transition: padding-top 0.5s ease;
+    -webkit-transition: padding-top 0.5s ease;
+    transition: padding-top 0.5s ease;
+}
+
+.login-container {
+    max-width: 306px;
+    margin: 113px auto;
+    padding: 62px;
+    background-color: #fff;
+    border-radius: 35px;
+    box-shadow: 20px 20px 7px rgba(0, 0, 0, 0.1);
+}
+
+.form-group {
+    margin-bottom: 20px;
+}
+
+label {
+    display: block;
+    margin-bottom: 5px;
+}
+
+input[type="email"],
+input[type="password"] {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 3px;
+}
+
+
+button {
+    display: block;
+    width: 100%;
+    padding: 10px;
+    background-color: #007bff;
+    color: #fff;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+}
+
+button:hover {
+    background-color: #0056b3;
+}
+
+.options {
+      margin-top: 25px;
+    text-align: center;
+}
+
+.separator {
+    margin: 0 10px;
+}
+
+.error-message{
+    background: #F8D7DA;
+    padding: 8px 60px;
+    border-radius: 5px;
+    color: #8B3E46;
+    border: 1px solid #F5C6CB;
+}
+
+
+
+
+
+footer {
+  background: #333;
+  color: #fff;
+  padding: 20px 0;
+  text-align: center;
+}
+
+.footer-content {
+  display: flex;
+  justify-content: space-around;
+  max-width: 1200px;
+  margin: auto;
+}
+
+.footer-section {
+  flex: 1;
+  padding: 10px;
+}
+
+
+.footer-section h2 {
+  color: aliceblue;
+  margin-top: 0;
+  font-size: 18px;
+}
+
+.footer-section p, .footer-section ul, .footer-section li {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.footer-section ul {
+  padding-top: 10px;
+}
+
+.footer-section ul li {
+  margin-bottom: 10px;
+}
+
+.footer-section ul li a {
+  color: #fff;
+  text-decoration: none;
+}
+
+.footer-section ul li a:hover {
+  text-decoration: underline;
+}
+
+.footer-link {
+  color: azure;
+  text-decoration: none;
+  transition: all 0.3s ease;
+}
+
+.footer-link:hover {
+  text-decoration: underline;
+}
+
+
+.footer-bottom {
+  margin-top: 20px;
+  font-size: 14px;
+}

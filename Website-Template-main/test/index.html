@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>New Account</title>
+    <link rel="stylesheet" href="new-account.css"> <!-- Link to your custom styles -->
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 0;
+        }
+
+        .container {
+            max-width: 400px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            text-align: center;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            font-size: 20px;
+            display: block;
+            margin-bottom: 6px;
+        }
+
+        input[type="text"],
+        input[type="email"],
+        input[type="tel"],
+        input[type="password"] {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            box-sizing: border-box;
+        }
+
+        button {
+            font-size: 19px;
+            display: block;
+            width: 100%;
+            padding: 12px;
+            background-color: #007bff;
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        footer {
+            background: #333;
+            color: #fff;
+            padding: 20px 0;
+            text-align: center;
+            margin-top: 50px; /* Adjust margin as needed */
+        }
+
+        .footer-content {
+            display: flex;
+            justify-content: space-around;
+            max-width: 1200px;
+            margin: auto;
+        }
+
+        .footer-section {
+            flex: 1;
+            padding: 10px;
+        }
+
+        .footer-section h2 {
+            color: aliceblue;
+            margin-top: 0;
+            font-size: 18px;
+        }
+
+        .footer-section p,
+        .footer-section ul,
+        .footer-section li {
+            margin: 0;
+            padding: 0;
+            list-style: none;
+        }
+
+        .footer-section ul {
+            padding-top: 10px;
+        }
+
+        .footer-section ul li {
+            margin-bottom: 10px;
+        }
+
+        .footer-section ul li a {
+            color: #fff;
+            text-decoration: none;
+        }
+
+        .footer-section ul li a:hover {
+            text-decoration: underline;
+        }
+
+        .footer-bottom {
+            margin-top: 20px;
+            font-size: 14px;
+        }
+    </style>
+
+    <script>
+        async function requestOTP() {
+            const email = document.getElementById('email').value;
+            try {
+                const response = await fetch('/request_otp', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ email: email })
+                });
+
+                const result = await response.json();
+                alert(result.message);
+                if (result.message === 'OTP sent successfully') {
+                    // Show the OTP verification form
+                    document.getElementById('otp-verification').classList.remove('hidden');
+                    // Set email for account creation form
+                    document.getElementById('email-account').value = email;
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('An error occurred while requesting the OTP.');
+            }
+        }
+
+        async function verifyOTP() {
+            const otp = document.getElementById('otp').value;
+            try {
+                const response = await fetch('/verify_otp', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ otp: otp })
+                });
+
+                const result = await response.json();
+                alert(result.message);
+                if (result.message === 'OTP verified successfully') {
+                    // Hide the OTP request and verification forms
+                    document.getElementById('otp-form').classList.add('hidden');
+                    document.getElementById('otp-verification').classList.add('hidden');
+                    // Show the account creation form
+                    document.getElementById('create-account').classList.remove('hidden');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('An error occurred while verifying the OTP.');
+            }
+        }
+
+        async function createAccount(event) {
+            event.preventDefault();
+            const form = event.target;
+            const formData = new FormData(form);
+            try {
+                const response = await fetch(form.action, {
+                    method: form.method,
+                    body: formData
+                });
+
+                const result = await response.json();
+                if (result.redirect) {
+                    window.location.href = result.redirect;
+                } else {
+                    alert(result.message);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('An error occurred while creating the account.');
+            }
+        }
+    </script>
+</head>
+
+<body>
+    <div id="otp-form">
+        <div class="container">
+            <h1>Request OTP</h1>
+            <form onsubmit="event.preventDefault(); requestOTP();">
+                <div class="form-group">
+                    <label for="email">Email:</label>
+                    <input type="email" id="email" required>
+                </div>
+                <button type="submit" class="bt">Request OTP</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="otp-verification" class="hidden">
+        <div class="container">
+            <h1>Verify OTP</h1>
+            <form onsubmit="event.preventDefault(); verifyOTP();">
+                <div class="form-group">
+                    <label for="otp">OTP:</label>
+                    <input type="text" id="otp" required>
+                </div>
+                <button type="submit" class="bt">Verify OTP</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="create-account" class="hidden">
+        <div class="container">
+            <h1>Create New Account</h1>
+            <form action="/new-account-open.php" method="post" onsubmit="createAccount(event);">
+                <div class="form-group">
+                    <label for="fullname">Full Name:</label>
+                    <input type="text" id="fullname" name="fullname" required>
+                </div>
+                <div class="form-group">
+                    <label for="email-account">Email:</label>
+                    <input type="email" id="email-account" name="email" required readonly>
+                </div>
+                <div class="form-group">
+                    <label for="password">Password:</label>
+                    <input type="password" id="password" name="password" required>
+                </div>
+                <div class="form-group">
+                    <label for="phone">Phone Number:</label>
+                    <input type="tel" id="phone" name="phone" required>
+                </div>
+                <button type="submit" class="bt">Create Account</button>
+            </form>
+        </div>
+    </div>
+
+    <footer style="    margin-top: 180px;">
+        <div class="footer-content">
+            <div class="footer-section about">
+                <h2>About Us</h2>
+                <p>We are a team of passionate individuals working together to create amazing web experiences.</p>
+            </div>
+            <div class="footer-section links">
+                <h2>Quick Links</h2>
+                <ul>
+                    <li><a href="#home">Home</a></li>
+                    <li><a href="#services">Services</a></li>
+                    <li><a href="#contact">Contact</a></li>
+                    <li><a href="#about">About</a></li>
+                </ul>
+            </div>
+            <div class="footer-section contact">
+                <h2>Contact Us</h2>
+                <p>Email: info@example.com</p>
+                <p>Phone: +123 456 7890</p>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            &copy; 2024 YourCompanyName. All rights reserved.
+        </div>
+    </footer>
+
+</body>
+
+</html>
+
+
+

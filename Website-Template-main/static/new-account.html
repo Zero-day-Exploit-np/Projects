@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Create Account</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/new-account.css') }}">
+</head>
+<body>
+<div class="container">
+  <h1>Create New Account</h1>
+  <form id="signup-form" method="post" action="/create_account">
+    <div class="form-step" id="step-1">
+      <div class="form-group">
+        <label for="fullname">Full Name:</label>
+        <input type="text" id="fullname" name="fullname" autocomplete="given-name" required>
+      </div>
+      <div class="form-group">
+        <label for="email">Email:</label>
+        <input type="email" id="email" name="email" autocomplete="email" required>
+      </div>
+      <div class="form-group">
+        <label for="password">Password:</label>
+        <input type="password" id="password" name="password" autocomplete="new-password" required>
+      </div>
+      <div class="form-group">
+        <label for="phone">Phone Number:</label>
+        <input type="tel" id="phone" name="phone" autocomplete="tel" required>
+      </div>
+      <button type="button" onclick="sendOTP()">Next</button>
+    </div>
+    <div class="form-step" id="step-2" style="display: none;">
+      <div class="form-group">
+        <label for="otp">Enter OTP:</label>
+        <input type="text" id="otp" name="otp" required>
+      </div>
+      <button type="button" onclick="verifyOTP()">Verify OTP</button>
+    </div>
+  </form>
+</div>
+<footer>
+  <div class="footer-content">
+    <div class="footer-section about">
+      <h2>About Us</h2>
+      <p>We are a team of passionate individuals working together to create amazing web experiences.</p>
+    </div>
+    <div class="footer-section links">
+      <h2>Quick Links</h2>
+      <ul>
+        <li><a href="#home">Home</a></li>
+        <li><a href="#services">Services</a></li>
+        <li><a href="#contact">Contact</a></li>
+        <li><a href="#about">About</a></li>
+      </ul>
+    </div>
+    <div class="footer-section contact">
+      <h2>Contact Us</h2>
+      <p>Email: info@example.com</p>
+      <p>Phone: +123 456 7890</p>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    &copy; 2024 YourCompanyName. All rights reserved.
+  </div>
+</footer>
+<script>
+function sendOTP() {
+  const email = document.getElementById('email').value;
+  fetch('/request_otp', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ email })
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.message) {
+      document.getElementById('step-1').style.display = 'none';
+      document.getElementById('step-2').style.display = 'block';
+    } else {
+      alert(data.error);
+    }
+  });
+}
+
+function verifyOTP() {
+  const otp = document.getElementById('otp').value;
+  fetch('/verify_otp', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ otp })
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.message) {
+      document.getElementById('signup-form').submit();
+    } else {
+      alert(data.error);
+    }
+  });
+}
+</script>
+</body>
+</html>
