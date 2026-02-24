@@ -1,0 +1,17 @@
+<script>
+    fetch("https://api.github.com/users/Zero-day-Exploit-np/repos")
+        .then(res => res.json())
+        .then(data => {
+            const repoContainer = document.getElementById("repos");
+
+            data.forEach(repo => {
+                repoContainer.innerHTML += `
+        <div class="repo-card">
+          <h3>${repo.name}</h3>
+          <p>${repo.description || "No description"}</p>
+          <a href="${repo.html_url}" target="_blank">View on GitHub</a>
+        </div>
+      `;
+            });
+        });
+</script>

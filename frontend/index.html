@@ -1,0 +1,745 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Real World Shortest Path Finder</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            background: #f5f5f5;
+        }
+
+        #panel {
+            background: #fff;
+            border-bottom: 2px solid #ccc;
+            padding: 10px 14px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: flex-end;
+            z-index: 1000;
+        }
+
+        .field {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+            flex: 1;
+            min-width: 160px;
+        }
+
+        .field label {
+            font-size: 11px;
+            font-weight: bold;
+            color: #555;
+            text-transform: uppercase;
+            letter-spacing: .5px;
+        }
+
+        .ac-wrap {
+            position: relative;
+        }
+
+        .ac-wrap input {
+            width: 100%;
+            padding: 8px 10px;
+            border: 1px solid #bbb;
+            border-radius: 4px;
+            font-size: 14px;
+            outline: none;
+        }
+
+        .ac-wrap input:focus {
+            border-color: #1976D2;
+            box-shadow: 0 0 0 2px rgba(25, 118, 210, .15);
+        }
+
+        .ac-drop {
+            display: none;
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: #fff;
+            border: 1px solid #bbb;
+            border-top: none;
+            border-radius: 0 0 4px 4px;
+            max-height: 200px;
+            overflow-y: auto;
+            z-index: 9999;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, .15);
+        }
+
+        .ac-item {
+            padding: 8px 10px;
+            cursor: pointer;
+            font-size: 13px;
+            border-bottom: 1px solid #f0f0f0;
+            line-height: 1.35;
+        }
+
+        .ac-item:hover {
+            background: #e3f2fd;
+        }
+
+        .ac-item b {
+            display: block;
+        }
+
+        .ac-item span {
+            font-size: 11px;
+            color: #888;
+        }
+
+        select {
+            padding: 8px 10px;
+            border: 1px solid #bbb;
+            border-radius: 4px;
+            font-size: 13px;
+            background: #fff;
+            outline: none;
+            cursor: pointer;
+        }
+
+        .btn {
+            padding: 9px 18px;
+            border: none;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: background .15s;
+        }
+
+        #findBtn {
+            background: #1976D2;
+            color: #fff;
+        }
+
+        #findBtn:hover {
+            background: #1565C0;
+        }
+
+        #findBtn:disabled {
+            background: #90CAF9;
+            cursor: not-allowed;
+        }
+
+        #clearBtn {
+            background: #e53935;
+            color: #fff;
+        }
+
+        #clearBtn:hover {
+            background: #c62828;
+        }
+
+        #statusBar {
+            background: #E3F2FD;
+            border-bottom: 1px solid #90CAF9;
+            padding: 7px 14px;
+            font-size: 13px;
+            color: #1565C0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            min-height: 34px;
+        }
+
+        #statusBar.err {
+            background: #FFEBEE;
+            border-color: #EF9A9A;
+            color: #B71C1C;
+        }
+
+        #statusBar.ok {
+            background: #E8F5E9;
+            border-color: #A5D6A7;
+            color: #1B5E20;
+        }
+
+        #spinner {
+            width: 15px;
+            height: 15px;
+            border: 2px solid #BBDEFB;
+            border-top-color: #1565C0;
+            border-radius: 50%;
+            animation: spin .7s linear infinite;
+            flex-shrink: 0;
+            display: none;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        #infoBar {
+            display: none;
+            background: #fff;
+            border-bottom: 1px solid #ddd;
+            padding: 7px 14px;
+            font-size: 13px;
+            flex-wrap: wrap;
+            gap: 18px;
+            align-items: center;
+        }
+
+        .info-item {
+            display: flex;
+            gap: 5px;
+        }
+
+        .info-item .lbl {
+            color: #777;
+        }
+
+        .info-item .val {
+            font-weight: bold;
+            color: #111;
+        }
+
+        #body {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        #map {
+            flex: 1;
+        }
+
+        #sidebar {
+            width: 300px;
+            background: #fff;
+            border-left: 1px solid #ddd;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+
+        #sidebarTitle {
+            padding: 10px 12px;
+            background: #1976D2;
+            color: #fff;
+            font-size: 13px;
+            font-weight: bold;
+        }
+
+        #stepList {
+            flex: 1;
+            overflow-y: auto;
+            font-size: 12px;
+        }
+
+        .step {
+            display: flex;
+            gap: 10px;
+            padding: 8px 10px;
+            border-bottom: 1px solid #f0f0f0;
+            align-items: flex-start;
+            cursor: pointer;
+        }
+
+        .step:hover {
+            background: #f5f5f5;
+        }
+
+        .step-icon {
+            width: 26px;
+            height: 26px;
+            border-radius: 50%;
+            background: #1976D2;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 13px;
+            flex-shrink: 0;
+        }
+
+        .step-body {
+            flex: 1;
+        }
+
+        .step-instr {
+            font-size: 12px;
+            line-height: 1.35;
+            color: #222;
+        }
+
+        .step-meta {
+            font-size: 11px;
+            color: #888;
+            margin-top: 2px;
+        }
+
+        #algoBox {
+            padding: 10px 12px;
+            background: #F8F9FA;
+            border-top: 1px solid #eee;
+            font-size: 11px;
+            color: #555;
+            line-height: 1.5;
+        }
+
+        #algoBox b {
+            color: #1976D2;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="panel">
+        <div class="field">
+            <label>🟢 Start — city, address, or landmark (anywhere on Earth)</label>
+            <div class="ac-wrap">
+                <input id="startInp" type="text" placeholder="e.g. Howrah Station, Kolkata" autocomplete="off" />
+                <div class="ac-drop" id="startDrop"></div>
+            </div>
+        </div>
+
+        <div class="field">
+            <label>🔴 End — city, address, or landmark (anywhere on Earth)</label>
+            <div class="ac-wrap">
+                <input id="endInp" type="text" placeholder="e.g. Indira Gandhi Airport, Delhi" autocomplete="off" />
+                <div class="ac-drop" id="endDrop"></div>
+            </div>
+        </div>
+
+        <div class="field" style="flex:0;min-width:130px;">
+            <label>Algorithm</label>
+            <select id="algoSel">
+                <option value="dijkstra">Dijkstra's</option>
+                <option value="astar">A* Search</option>
+                <option value="bfs">BFS (fewest turns)</option>
+            </select>
+        </div>
+
+        <div class="field" style="flex:0;min-width:130px;">
+            <label>Travel Mode</label>
+            <select id="modeSel">
+                <option value="driving-car">🚗 Car</option>
+                <option value="driving-hgv">🚛 Heavy Vehicle</option>
+                <option value="cycling-regular">🚴 Cycling</option>
+                <option value="foot-walking">🚶 Walking</option>
+                <option value="foot-hiking">🥾 Hiking</option>
+            </select>
+        </div>
+
+        <div class="field" style="flex:0;min-width:120px;">
+            <label>Optimize For</label>
+            <select id="prefSel">
+                <option value="recommended">Recommended</option>
+                <option value="shortest">Shortest Distance</option>
+                <option value="fastest">Fastest Time</option>
+            </select>
+        </div>
+
+        <button class="btn" id="findBtn" onclick="findPath()">▶ Find Path</button>
+        <button class="btn" id="clearBtn" onclick="clearAll()">✕ Clear</button>
+    </div>
+
+    <div id="statusBar">
+        <div id="spinner"></div>
+        <span id="statusTxt">Type start and end locations. You can also click the map to set points (first click =
+            start, second = end).</span>
+    </div>
+
+    <div id="infoBar">
+        <div class="info-item"><span class="lbl">Algorithm:</span><span class="val" id="i-algo">—</span></div>
+        <div class="info-item"><span class="lbl">Distance:</span><span class="val" id="i-dist">—</span></div>
+        <div class="info-item"><span class="lbl">Duration:</span><span class="val" id="i-dur">—</span></div>
+        <div class="info-item"><span class="lbl">Road Points:</span><span class="val" id="i-seg">—</span></div>
+        <div class="info-item"><span class="lbl">Nodes Explored:</span><span class="val" id="i-nodes">—</span></div>
+        <div class="info-item"><span class="lbl">Algo Runtime:</span><span class="val" id="i-exec">—</span></div>
+    </div>
+
+    <div id="body">
+        <div id="map"></div>
+
+        <div id="sidebar">
+            <div id="sidebarTitle">Turn-by-Turn Directions</div>
+            <div id="stepList">
+                <div style="padding:20px;color:#aaa;font-size:12px;text-align:center;margin-top:40px;">
+                    Find a route to see<br>turn-by-turn directions here.
+                </div>
+            </div>
+            <div id="algoBox">
+                <b>Dijkstra's Algorithm</b><br>
+                Explores road nodes by always expanding the minimum-cost node first using a <b>Min-Heap Priority
+                    Queue</b>.
+                Guarantees the globally optimal shortest path. Time: <b>O((V+E) log V)</b>.
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ─── CONFIG ───────────────────────────────────────────
+        const ORS_KEY = 'eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjZjZDRiMzVmYWU0OTQ0NGE5ZDYxM2JhODlkZTI0MmQzIiwiaCI6Im11cm11cjY0In0=';
+        const ORS_BASE = 'https://api.openrouteservice.org';
+
+        // ─── MAP ──────────────────────────────────────────────
+        const map = L.map('map').setView([22.5726, 88.3639], 10);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© <a href="https://openstreetmap.org">OpenStreetMap</a> | Routing by <a href="https://openrouteservice.org">ORS</a>',
+            maxZoom: 19
+        }).addTo(map);
+
+        let startMarker = null, endMarker = null, routeLayer = null, straightLayer = null;
+        let startCoords = null, endCoords = null; // [lat,lon]
+        let clickState = 'start';
+
+        map.on('click', e => {
+            const { lat, lng } = e.latlng;
+            if (clickState === 'start') {
+                startCoords = [lat, lng];
+                document.getElementById('startInp').value = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+                placeMarker('start', lat, lng);
+                clickState = 'end';
+                setStatus('Start set. Click the map again to set END point.');
+            } else {
+                endCoords = [lat, lng];
+                document.getElementById('endInp').value = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+                placeMarker('end', lat, lng);
+                clickState = 'start';
+                setStatus('Both points set. Press ▶ Find Path.');
+            }
+        });
+
+        function placeMarker(type, lat, lon) {
+            const color = type === 'start' ? '#4CAF50' : '#e53935';
+            const label = type === 'start' ? 'START' : 'END';
+            const icon = L.divIcon({
+                className: '',
+                html: `<div style="width:18px;height:18px;border-radius:50%;background:${color};border:3px solid #fff;box-shadow:0 1px 6px rgba(0,0,0,.5);"></div>`,
+                iconSize: [18, 18], iconAnchor: [9, 9]
+            });
+            if (type === 'start') { if (startMarker) map.removeLayer(startMarker); startMarker = L.marker([lat, lon], { icon }).bindTooltip(`<b>${label}</b>`).addTo(map); }
+            else { if (endMarker) map.removeLayer(endMarker); endMarker = L.marker([lat, lon], { icon }).bindTooltip(`<b>${label}</b>`).addTo(map); }
+        }
+
+        // ─── MIN-HEAP ─────────────────────────────────────────
+        class MinHeap {
+            constructor() { this.h = []; }
+            push(p, v) { this.h.push([p, v]); this._up(this.h.length - 1); }
+            pop() { const t = this.h[0], l = this.h.pop(); if (this.h.length) { this.h[0] = l; this._down(0); } return t; }
+            get size() { return this.h.length; }
+            _up(i) { while (i > 0) { const p = (i - 1) >> 1; if (this.h[p][0] > this.h[i][0]) { [this.h[p], this.h[i]] = [this.h[i], this.h[p]]; i = p; } else break; } }
+            _down(i) { const n = this.h.length; while (true) { let s = i, l = 2 * i + 1, r = 2 * i + 2; if (l < n && this.h[l][0] < this.h[s][0]) s = l; if (r < n && this.h[r][0] < this.h[s][0]) s = r; if (s !== i) { [this.h[s], this.h[i]] = [this.h[i], this.h[s]]; i = s; } else break; } }
+        }
+
+        // ─── DIJKSTRA ─────────────────────────────────────────
+        function dijkstra(adj, src, dst) {
+            const dist = new Map(), prev = new Map(), vis = new Set(), pq = new MinHeap();
+            dist.set(src, 0); pq.push(0, src);
+            while (pq.size) {
+                const [d, u] = pq.pop();
+                if (vis.has(u)) continue;
+                vis.add(u);
+                if (u === dst) break;
+                for (const [v, w] of (adj.get(u) || [])) {
+                    const nd = d + w;
+                    if (!dist.has(v) || nd < dist.get(v)) { dist.set(v, nd); prev.set(v, u); pq.push(nd, v); }
+                }
+            }
+            return { prev, visited: vis.size };
+        }
+
+        // ─── A* ───────────────────────────────────────────────
+        function haversine(lat1, lon1, lat2, lon2) {
+            const R = 6371, dLat = (lat2 - lat1) * Math.PI / 180, dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
+            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        }
+
+        function astar(adj, src, dst, coords) {
+            const g = new Map(), prev = new Map(), vis = new Set(), pq = new MinHeap();
+            const h = id => { const a = coords.get(id), b = coords.get(dst); return a && b ? haversine(a[0], a[1], b[0], b[1]) : 0; };
+            g.set(src, 0); pq.push(h(src), src);
+            while (pq.size) {
+                const [, u] = pq.pop();
+                if (vis.has(u)) continue;
+                vis.add(u);
+                if (u === dst) break;
+                for (const [v, w] of (adj.get(u) || [])) {
+                    const ng = (g.get(u) || 0) + w;
+                    if (!g.has(v) || ng < g.get(v)) { g.set(v, ng); prev.set(v, u); pq.push(ng + h(v), v); }
+                }
+            }
+            return { prev, visited: vis.size };
+        }
+
+        // ─── BFS ──────────────────────────────────────────────
+        function bfs(adj, src, dst) {
+            const prev = new Map(), vis = new Set([src]), q = [src];
+            while (q.length) { const u = q.shift(); if (u === dst) break; for (const [v] of (adj.get(u) || [])) { if (!vis.has(v)) { vis.add(v); prev.set(v, u); q.push(v); } } }
+            return { prev, visited: vis.size };
+        }
+
+        // ─── RECONSTRUCT ──────────────────────────────────────
+        function reconstructPath(prev, src, dst) {
+            const path = []; let cur = dst;
+            while (cur !== undefined) { path.unshift(cur); if (cur === src) return path; cur = prev.get(cur); }
+            return null;
+        }
+
+        // ─── AUTOCOMPLETE (ORS Pelias) ────────────────────────
+        let acT = {};
+        function setupAC(inpId, dropId, onPick) {
+            const inp = document.getElementById(inpId), drop = document.getElementById(dropId);
+            inp.addEventListener('input', () => {
+                clearTimeout(acT[inpId]);
+                const q = inp.value.trim();
+                if (q.length < 2) { drop.style.display = 'none'; return; }
+                acT[inpId] = setTimeout(async () => {
+                    try {
+                        const url = `${ORS_BASE}/geocode/autocomplete?api_key=${ORS_KEY}&text=${encodeURIComponent(q)}&size=6`;
+                        const res = await fetch(url);
+                        const data = await res.json();
+                        const feats = data.features || [];
+                        drop.innerHTML = '';
+                        if (!feats.length) { drop.style.display = 'none'; return; }
+                        for (const f of feats) {
+                            const name = f.properties.name || '';
+                            const label = f.properties.label || '';
+                            const [lon, lat] = f.geometry.coordinates;
+                            const div = document.createElement('div');
+                            div.className = 'ac-item';
+                            div.innerHTML = `<b>${name}</b><span>${label}</span>`;
+                            div.addEventListener('mousedown', e => {
+                                e.preventDefault();
+                                inp.value = label;
+                                onPick([lat, lon]);
+                                drop.style.display = 'none';
+                            });
+                            drop.appendChild(div);
+                        }
+                        drop.style.display = 'block';
+                    } catch (e) { drop.style.display = 'none'; }
+                }, 350);
+            });
+            inp.addEventListener('blur', () => setTimeout(() => drop.style.display = 'none', 200));
+            inp.addEventListener('focus', () => { if (drop.children.length) drop.style.display = 'block'; });
+        }
+
+        setupAC('startInp', 'startDrop', c => { startCoords = c; placeMarker('start', c[0], c[1]); map.setView(c, 13); });
+        setupAC('endInp', 'endDrop', c => { endCoords = c; placeMarker('end', c[0], c[1]); });
+
+        // ─── GEOCODE FALLBACK ─────────────────────────────────
+        async function geocodeFallback(text) {
+            const url = `${ORS_BASE}/geocode/search?api_key=${ORS_KEY}&text=${encodeURIComponent(text)}&size=1`;
+            const res = await fetch(url);
+            const data = await res.json();
+            if (!data.features || !data.features.length) throw new Error(`Cannot find location: "${text}"`);
+            const f = data.features[0];
+            return [f.geometry.coordinates[1], f.geometry.coordinates[0]];
+        }
+
+        // ─── FORMAT HELPERS ───────────────────────────────────
+        function fmtDist(m) { return m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.round(m)} m`; }
+        function fmtDur(s) {
+            const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
+            if (h > 0) return `${h}h ${m}m`;
+            if (m > 0) return `${m} min`;
+            return `${Math.round(s)} sec`;
+        }
+
+        const stepIcon = { 0: '🏁', 1: '↑', 2: '↗', 3: '→', 4: '↘', 5: '↓', 6: '↙', 7: '←', 8: '↖', 10: '⤴', 11: '⤵', 12: '🔄', 13: '↑', 14: '⛴', 15: '⛳' };
+
+        // ─── MAIN: FIND PATH ──────────────────────────────────
+        async function findPath() {
+            const startTxt = document.getElementById('startInp').value.trim();
+            const endTxt = document.getElementById('endInp').value.trim();
+            const algo = document.getElementById('algoSel').value;
+            const mode = document.getElementById('modeSel').value;
+            const pref = document.getElementById('prefSel').value;
+
+            if (!startTxt || !endTxt) { setStatus('Enter both start and end locations.', 'err'); return; }
+
+            document.getElementById('findBtn').disabled = true;
+            document.getElementById('infoBar').style.display = 'none';
+            if (routeLayer) { map.removeLayer(routeLayer); routeLayer = null; }
+            if (straightLayer) { map.removeLayer(straightLayer); straightLayer = null; }
+
+            try {
+                // 1. Geocode
+                setStatus('Geocoding locations...', '', true);
+                if (!startCoords) { startCoords = await geocodeFallback(startTxt); placeMarker('start', startCoords[0], startCoords[1]); }
+                if (!endCoords) { endCoords = await geocodeFallback(endTxt); placeMarker('end', endCoords[0], endCoords[1]); }
+
+                const [sLat, sLon] = startCoords, [eLat, eLon] = endCoords;
+                const crow = haversine(sLat, sLon, eLat, eLon);
+
+                // Show straight line immediately
+                straightLayer = L.polyline([[sLat, sLon], [eLat, eLon]], { color: '#e53935', weight: 2, dashArray: '6 5', opacity: .5 }).addTo(map);
+                map.fitBounds([[sLat, sLon], [eLat, eLon]], { padding: [60, 60] });
+
+                setStatus(`As-the-crow-flies: ${crow.toFixed(1)} km — Fetching real road route from OpenRouteService (global coverage)...`, '', true);
+
+                // 2. Call ORS Directions API — handles long-distance globally (up to 6000 km for car)
+                const orsBody = {
+                    coordinates: [[sLon, sLat], [eLon, eLat]],
+                    preference: pref,
+                    geometry: true,
+                    instructions: true,
+                    units: 'km',
+                    language: 'en'
+                };
+
+                const orsRes = await fetch(`${ORS_BASE}/v2/directions/${mode}/geojson`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': ORS_KEY,
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json, application/geo+json'
+                    },
+                    body: JSON.stringify(orsBody)
+                });
+
+                if (!orsRes.ok) {
+                    const errData = await orsRes.json().catch(() => ({}));
+                    const msg = errData.error?.message || errData.message || `ORS error ${orsRes.status}`;
+                    throw new Error(msg);
+                }
+
+                const orsData = await orsRes.json();
+                const feature = orsData.features[0];
+                const summary = feature.properties.summary;
+                const segments = feature.properties.segments;
+                const rawCoords = feature.geometry.coordinates; // [[lon,lat],...]
+
+                setStatus(`ORS returned ${rawCoords.length.toLocaleString()} road points. Running ${algo === 'dijkstra' ? "Dijkstra's" : algo === 'astar' ? 'A*' : 'BFS'} algorithm...`, '', true);
+
+                // 3. Build adjacency list from ORS geometry
+                const nodeCount = rawCoords.length;
+                const adj = new Map(), coords = new Map();
+
+                for (let i = 0; i < nodeCount; i++) {
+                    const [lon, lat] = rawCoords[i];
+                    coords.set(i, [lat, lon]);
+                    adj.set(i, []);
+                }
+                for (let i = 0; i < nodeCount - 1; i++) {
+                    const [aLat, aLon] = coords.get(i), [bLat, bLon] = coords.get(i + 1);
+                    const d = haversine(aLat, aLon, bLat, bLon);
+                    adj.get(i).push([i + 1, d]);
+                    adj.get(i + 1).push([i, d]);
+                }
+
+                // 4. Run DSA algorithm
+                const t0 = performance.now();
+                let result;
+                if (algo === 'dijkstra') result = dijkstra(adj, 0, nodeCount - 1);
+                else if (algo === 'astar') result = astar(adj, 0, nodeCount - 1, coords);
+                else result = bfs(adj, 0, nodeCount - 1);
+                const execMs = (performance.now() - t0).toFixed(2);
+
+                const path = reconstructPath(result.prev, 0, nodeCount - 1);
+                if (!path) throw new Error('Could not reconstruct path. Please try again.');
+
+                // 5. Draw route
+                const latLngs = path.map(i => coords.get(i)).map(([lat, lon]) => [lat, lon]);
+                routeLayer = L.polyline(latLngs, { color: '#1565C0', weight: 6, opacity: .85, lineJoin: 'round', lineCap: 'round' }).addTo(map);
+                map.fitBounds(routeLayer.getBounds(), { padding: [50, 50] });
+
+                // 6. Info bar
+                const algoNames = { dijkstra: "Dijkstra's", astar: 'A* Search', bfs: 'BFS' };
+                document.getElementById('i-algo').textContent = algoNames[algo];
+                document.getElementById('i-dist').textContent = `${summary.distance.toFixed(2)} km`;
+                document.getElementById('i-dur').textContent = fmtDur(summary.duration);
+                document.getElementById('i-seg').textContent = rawCoords.length.toLocaleString();
+                document.getElementById('i-nodes').textContent = result.visited.toLocaleString();
+                document.getElementById('i-exec').textContent = `${execMs} ms`;
+                document.getElementById('infoBar').style.display = 'flex';
+
+                // 7. Turn-by-turn steps
+                const stepList = document.getElementById('stepList');
+                stepList.innerHTML = '';
+                for (const seg of segments) {
+                    for (const step of seg.steps) {
+                        const div = document.createElement('div');
+                        div.className = 'step';
+                        const icon = stepIcon[step.type] || '↑';
+                        div.innerHTML = `
+          <div class="step-icon">${icon}</div>
+          <div class="step-body">
+            <div class="step-instr">${step.instruction}</div>
+            <div class="step-meta">${fmtDist(step.distance * 1000)} · ${fmtDur(step.duration)} · ${step.name !== '-' ? step.name : 'Unnamed road'}</div>
+          </div>`;
+                        // click → zoom to that step
+                        const wp = step.way_points;
+                        div.addEventListener('click', () => {
+                            if (wp && wp.length >= 2) {
+                                const c1 = coords.get(wp[0]), c2 = coords.get(wp[1] || wp[0]);
+                                if (c1 && c2) map.fitBounds([[c1[0], c1[1]], [c2[0], c2[1]]], { padding: [60, 60], maxZoom: 17 });
+                            }
+                        });
+                        stepList.appendChild(div);
+                    }
+                }
+
+                // 8. Algo explanation
+                const descs = {
+                    dijkstra: `<b>Dijkstra's Algorithm</b><br>Explores road nodes by always expanding the minimum-cost frontier node using a <b>Min-Heap Priority Queue</b>. Guarantees globally optimal shortest path. Explored <b>${result.visited.toLocaleString()}</b> of <b>${nodeCount.toLocaleString()}</b> nodes. Complexity: <b>O((V+E) log V)</b>.`,
+                    astar: `<b>A* Search Algorithm</b><br>Dijkstra's + <b>Haversine heuristic</b> to guide search toward destination. Only explored <b>${result.visited.toLocaleString()}</b> of <b>${nodeCount.toLocaleString()}</b> nodes — more efficient! Complexity: <b>O(E)</b> best case.`,
+                    bfs: `<b>BFS (Breadth-First Search)</b><br>Explores level by level. Finds path with <b>fewest road segments</b>, not minimum distance. Explored <b>${result.visited.toLocaleString()}</b> of <b>${nodeCount.toLocaleString()}</b> nodes. Complexity: <b>O(V+E)</b>.`
+                };
+                document.getElementById('algoBox').innerHTML = descs[algo];
+
+                setStatus(
+                    `✅ Route found! ${summary.distance.toFixed(2)} km · ${fmtDur(summary.duration)} · ${algoNames[algo]} explored ${result.visited.toLocaleString()} nodes in ${execMs}ms`,
+                    'ok'
+                );
+
+            } catch (err) {
+                setStatus(`❌ ${err.message}`, 'err');
+                console.error(err);
+            }
+
+            document.getElementById('findBtn').disabled = false;
+        }
+
+        // ─── CLEAR ────────────────────────────────────────────
+        function clearAll() {
+            if (routeLayer) { map.removeLayer(routeLayer); routeLayer = null; }
+            if (straightLayer) { map.removeLayer(straightLayer); straightLayer = null; }
+            if (startMarker) { map.removeLayer(startMarker); startMarker = null; }
+            if (endMarker) { map.removeLayer(endMarker); endMarker = null; }
+            startCoords = null; endCoords = null;
+            document.getElementById('startInp').value = '';
+            document.getElementById('endInp').value = '';
+            document.getElementById('infoBar').style.display = 'none';
+            document.getElementById('stepList').innerHTML = '<div style="padding:20px;color:#aaa;font-size:12px;text-align:center;margin-top:40px;">Find a route to see<br>turn-by-turn directions here.</div>';
+            document.getElementById('algoBox').innerHTML = '<b>Dijkstra\'s Algorithm</b><br>Explores road nodes by always expanding the minimum-cost node first using a <b>Min-Heap Priority Queue</b>. Guarantees the globally optimal shortest path. Time: <b>O((V+E) log V)</b>.';
+            setStatus('Cleared. Enter new locations.');
+            clickState = 'start';
+        }
+
+        // ─── STATUS ───────────────────────────────────────────
+        function setStatus(msg, cls = '', loading = false) {
+            document.getElementById('statusBar').className = cls;
+            document.getElementById('statusTxt').textContent = msg;
+            document.getElementById('spinner').style.display = loading ? 'block' : 'none';
+        }
+    </script>
+</body>
+
+</html>
