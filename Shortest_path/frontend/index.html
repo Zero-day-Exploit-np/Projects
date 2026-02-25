@@ -3,6 +3,7 @@
 
 <head>
     <meta charset="UTF-8" />
+
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Real World Shortest Path Finder</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -302,6 +303,185 @@
         #algoBox b {
             color: #1976D2;
         }
+
+        .sel-field {
+            flex: 0;
+            min-width: 130px;
+        }
+
+        /* ── SIDEBAR TOGGLE BUTTON (mobile/tablet) ── */
+        #sidebarToggle {
+            display: none;
+            position: fixed;
+            bottom: 18px;
+            right: 18px;
+            z-index: 2000;
+            background: #1976D2;
+            color: #fff;
+            border: none;
+            border-radius: 50px;
+            padding: 12px 18px;
+            font-size: 14px;
+            font-weight: bold;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, .3);
+            cursor: pointer;
+            gap: 6px;
+            align-items: center;
+            white-space: nowrap;
+        }
+
+        /* ── RESPONSIVE BREAKPOINTS ── */
+
+        /* Tablet: ≤ 900px — sidebar becomes a slide-in drawer */
+        @media (max-width: 900px) {
+            #panel {
+                padding: 8px 10px;
+                gap: 8px;
+            }
+
+            .field {
+                min-width: 140px;
+            }
+
+            #sidebar {
+                position: fixed;
+                right: 0;
+                top: 0;
+                bottom: 0;
+                width: 300px;
+                z-index: 1500;
+                transform: translateX(100%);
+                transition: transform .3s ease;
+                box-shadow: -4px 0 20px rgba(0, 0, 0, .2);
+            }
+
+            #sidebar.open {
+                transform: translateX(0);
+            }
+
+            #sidebarToggle {
+                display: flex;
+            }
+
+            #body {
+                overflow: visible;
+            }
+
+            #map {
+                width: 100%;
+            }
+
+            /* Overlay when sidebar is open */
+            #sidebarOverlay {
+                display: none;
+                position: fixed;
+                inset: 0;
+                background: rgba(0, 0, 0, .35);
+                z-index: 1400;
+            }
+
+            #sidebarOverlay.visible {
+                display: block;
+            }
+        }
+
+        /* Mobile: ≤ 600px — panel stacks vertically, sidebar is a bottom sheet */
+        @media (max-width: 600px) {
+            #panel {
+                flex-direction: column;
+                align-items: stretch;
+                padding: 10px;
+                gap: 8px;
+            }
+
+            .field,
+            .sel-field {
+                min-width: unset !important;
+                flex: unset;
+                width: 100%;
+            }
+
+            /* Make selects and buttons full-width */
+            select {
+                width: 100%;
+                font-size: 14px;
+                padding: 10px;
+            }
+
+            .btn {
+                flex: 1;
+                padding: 12px;
+                font-size: 15px;
+                text-align: center;
+            }
+
+            /* Row for the two action buttons */
+            #btnRow {
+                display: flex;
+                gap: 8px;
+                width: 100%;
+            }
+
+            #statusBar {
+                font-size: 12px;
+                padding: 6px 10px;
+            }
+
+            #infoBar {
+                padding: 6px 10px;
+                gap: 10px;
+                font-size: 12px;
+            }
+
+            /* Sidebar becomes bottom sheet on mobile */
+            #sidebar {
+                top: unset;
+                right: 0;
+                left: 0;
+                bottom: 0;
+                width: 100%;
+                height: 55vh;
+                border-left: none;
+                border-top: 2px solid #ddd;
+                border-radius: 16px 16px 0 0;
+                transform: translateY(100%);
+                transition: transform .3s ease;
+            }
+
+            #sidebar.open {
+                transform: translateY(0);
+            }
+
+            #sidebarToggle {
+                bottom: 14px;
+                right: 14px;
+                padding: 11px 16px;
+                font-size: 13px;
+            }
+
+            /* Touch-friendly steps */
+            .step {
+                padding: 10px 12px;
+            }
+
+            .ac-wrap input {
+                font-size: 16px;
+                /* prevents iOS zoom */
+                padding: 10px 12px;
+            }
+        }
+
+        /* Very small screens */
+        @media (max-width: 380px) {
+            #panel {
+                padding: 8px;
+            }
+
+            .btn {
+                padding: 10px 8px;
+                font-size: 13px;
+            }
+        }
     </style>
 </head>
 
@@ -324,7 +504,7 @@
             </div>
         </div>
 
-        <div class="field" style="flex:0;min-width:130px;">
+        <div class="field sel-field">
             <label>Algorithm</label>
             <select id="algoSel">
                 <option value="dijkstra">Dijkstra's</option>
@@ -333,7 +513,7 @@
             </select>
         </div>
 
-        <div class="field" style="flex:0;min-width:130px;">
+        <div class="field sel-field">
             <label>Travel Mode</label>
             <select id="modeSel">
                 <option value="driving-car">🚗 Car</option>
@@ -344,7 +524,7 @@
             </select>
         </div>
 
-        <div class="field" style="flex:0;min-width:120px;">
+        <div class="field sel-field">
             <label>Optimize For</label>
             <select id="prefSel">
                 <option value="recommended">Recommended</option>
@@ -353,8 +533,10 @@
             </select>
         </div>
 
-        <button class="btn" id="findBtn" onclick="findPath()">▶ Find Path</button>
-        <button class="btn" id="clearBtn" onclick="clearAll()">✕ Clear</button>
+        <div id="btnRow">
+            <button class="btn" id="findBtn" onclick="findPath()">▶ Find Path</button>
+            <button class="btn" id="clearBtn" onclick="clearAll()">✕ Clear</button>
+        </div>
     </div>
 
     <div id="statusBar">
@@ -375,8 +557,15 @@
     <div id="body">
         <div id="map"></div>
 
+        <!-- Floating button to open sidebar on mobile/tablet -->
+        <button id="sidebarToggle" onclick="toggleSidebar()">🗺 Directions</button>
+
         <div id="sidebar">
-            <div id="sidebarTitle">Turn-by-Turn Directions</div>
+            <div id="dragHandle"></div>
+            <div id="sidebarTitle">
+                Turn-by-Turn Directions
+                <button id="sidebarClose" onclick="toggleSidebar()">✕</button>
+            </div>
             <div id="stepList">
                 <div style="padding:20px;color:#aaa;font-size:12px;text-align:center;margin-top:40px;">
                     Find a route to see<br>turn-by-turn directions here.
@@ -390,6 +579,31 @@
             </div>
         </div>
     </div>
+
+    <div id="sidebarOverlay" onclick="closeSidebar()"></div>
+    <button id="sidebarToggle" onclick="toggleSidebar()">🗺 Directions</button>
+
+    <script>
+        function toggleSidebar() {
+            const sb = document.getElementById('sidebar');
+            const ov = document.getElementById('sidebarOverlay');
+            const isOpen = sb.classList.contains('open');
+            if (isOpen) {
+                sb.classList.remove('open');
+                ov.classList.remove('visible');
+                document.getElementById('sidebarToggle').textContent = '🗺 Directions';
+            } else {
+                sb.classList.add('open');
+                ov.classList.add('visible');
+                document.getElementById('sidebarToggle').textContent = '✕ Close';
+            }
+        }
+        function closeSidebar() {
+            document.getElementById('sidebar').classList.remove('open');
+            document.getElementById('sidebarOverlay').classList.remove('visible');
+            document.getElementById('sidebarToggle').textContent = '🗺 Directions';
+        }
+    </script>
 
     <script>
         // ─── CONFIG ───────────────────────────────────────────
@@ -604,19 +818,60 @@
                     language: 'en'
                 };
 
-                const orsRes = await fetch(`${ORS_BASE}/v2/directions/${mode}/geojson`, {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': ORS_KEY,
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json, application/geo+json'
-                    },
-                    body: JSON.stringify(orsBody)
-                });
+                // helper to call ORS directions
+                async function callOrs(body) {
+                    const res = await fetch(`${ORS_BASE}/v2/directions/${mode}/geojson`, {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': ORS_KEY,
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json, application/geo+json'
+                        },
+                        body: JSON.stringify(body)
+                    });
+                    return res;
+                }
+
+                let orsRes = await callOrs(orsBody);
 
                 if (!orsRes.ok) {
                     const errData = await orsRes.json().catch(() => ({}));
                     const msg = errData.error?.message || errData.message || `ORS error ${orsRes.status}`;
+
+                    // If ORS couldn't snap a coordinate to the routable network, try reverse-geocoding that point and retry once
+                    const m = String(msg).match(/coordinate\s*(\d+):\s*([0-9.\-]+)\s+([0-9.\-]+)/i);
+                    if (m) {
+                        const idx = parseInt(m[1], 10);
+                        const badLon = parseFloat(m[2]);
+                        const badLat = parseFloat(m[3]);
+                        try {
+                            const revUrl = `${ORS_BASE}/geocode/reverse?api_key=${ORS_KEY}&point.lat=${badLat}&point.lon=${badLon}&size=1`;
+                            const revRes = await fetch(revUrl);
+                            if (revRes.ok) {
+                                const revData = await revRes.json().catch(() => ({}));
+                                const feat = revData.features && revData.features[0];
+                                if (feat && feat.geometry && feat.geometry.coordinates) {
+                                    const [snapLon, snapLat] = feat.geometry.coordinates;
+                                    // replace the offending coordinate in orsBody and retry
+                                    const newBody = JSON.parse(JSON.stringify(orsBody));
+                                    if (newBody.coordinates && newBody.coordinates.length > idx) {
+                                        newBody.coordinates[idx] = [snapLon, snapLat];
+                                        orsRes = await callOrs(newBody);
+                                        if (orsRes.ok) {
+                                            // use the successful response
+                                        } else {
+                                            const err2 = await orsRes.json().catch(() => ({}));
+                                            const msg2 = err2.error?.message || err2.message || `ORS error ${orsRes.status}`;
+                                            throw new Error(msg2);
+                                        }
+                                    }
+                                }
+                            }
+                        } catch (e) {
+                            // fall through and throw original message
+                        }
+                    }
+
                     throw new Error(msg);
                 }
 
@@ -669,6 +924,14 @@
                 document.getElementById('i-nodes').textContent = result.visited.toLocaleString();
                 document.getElementById('i-exec').textContent = `${execMs} ms`;
                 document.getElementById('infoBar').style.display = 'flex';
+
+                // Auto-open directions sidebar on mobile/tablet
+                if (window.innerWidth <= 900) {
+                    document.getElementById('sidebar').classList.add('open');
+                    document.getElementById('sidebarOverlay').classList.add('visible');
+                    document.getElementById('sidebarToggle').textContent = '✕ Close';
+                }
+                autoOpenSidebar();
 
                 // 7. Turn-by-turn steps
                 const stepList = document.getElementById('stepList');
@@ -739,6 +1002,43 @@
             document.getElementById('statusTxt').textContent = msg;
             document.getElementById('spinner').style.display = loading ? 'block' : 'none';
         }
+
+        // ─── SIDEBAR TOGGLE (mobile/tablet) ───────────────────
+        function toggleSidebar() {
+            const sb = document.getElementById('sidebar');
+            const btn = document.getElementById('sidebarToggle');
+            const isOpen = sb.classList.toggle('open');
+            btn.textContent = isOpen ? '✕ Close' : '🗺 Directions';
+            // Invalidate map size so tiles render correctly after sidebar slides in/out
+            setTimeout(() => map.invalidateSize(), 310);
+        }
+
+        // Auto-open sidebar after a route is found on small screens
+        function autoOpenSidebar() {
+            if (window.innerWidth < 900) {
+                const sb = document.getElementById('sidebar');
+                if (!sb.classList.contains('open')) {
+                    sb.classList.add('open');
+                    document.getElementById('sidebarToggle').textContent = '✕ Close';
+                    setTimeout(() => map.invalidateSize(), 310);
+                }
+            }
+        }
+
+        // ─── MOBILE: Swipe-down to close sidebar ──────────────
+        (function () {
+            const sb = document.getElementById('sidebar');
+            let startY = 0;
+            sb.addEventListener('touchstart', e => { startY = e.touches[0].clientY; }, { passive: true });
+            sb.addEventListener('touchend', e => {
+                const dy = e.changedTouches[0].clientY - startY;
+                if (dy > 60) { // swipe down 60px+ closes it
+                    sb.classList.remove('open');
+                    document.getElementById('sidebarToggle').textContent = '🗺 Directions';
+                    setTimeout(() => map.invalidateSize(), 310);
+                }
+            }, { passive: true });
+        })();
     </script>
 </body>
 
