@@ -1,17 +1,1293 @@
-<script>
-    fetch("https://api.github.com/users/Zero-day-Exploit-np/repos")
-        .then(res => res.json())
-        .then(data => {
-            const repoContainer = document.getElementById("repos");
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
 
-            data.forEach(repo => {
-                repoContainer.innerHTML += `
-        <div class="repo-card">
-          <h3>${repo.name}</h3>
-          <p>${repo.description || "No description"}</p>
-          <a href="${repo.html_url}" target="_blank">View on GitHub</a>
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PathFinder — Real World Route Engine</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link
+        href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;700;800&display=swap"
+        rel="stylesheet" />
+    <style>
+        /* ─── DUAL THEME ─── */
+        [data-theme="dark"] {
+            --bg: #0b0b0f;
+            --bg2: #111116;
+            --bg3: #17171d;
+            --surface: #1c1c24;
+            --border: #27272f;
+            --border2: #32323c;
+            --text: #e8e6e1;
+            --text2: #9997a0;
+            --text3: #5a5870;
+            --accent: #ff5c1a;
+            --accent-d: #cc4800;
+            --accent-g: rgba(255, 92, 26, .13);
+            --blue: #3b82f6;
+            --green: #22c55e;
+            --red: #ef4444;
+            --yellow: #f59e0b;
+            --map-filter: invert(1) hue-rotate(180deg) brightness(.82) contrast(1.05) saturate(.55);
+        }
+
+        [data-theme="light"] {
+            --bg: #f4f2ed;
+            --bg2: #eceae4;
+            --bg3: #e3e1db;
+            --surface: #fff;
+            --border: #dbd9d3;
+            --border2: #c6c4be;
+            --text: #111116;
+            --text2: #55535c;
+            --text3: #9997a0;
+            --accent: #e04400;
+            --accent-d: #c23b00;
+            --accent-g: rgba(224, 68, 0, .1);
+            --blue: #2563eb;
+            --green: #16a34a;
+            --red: #dc2626;
+            --yellow: #d97706;
+            --map-filter: none;
+        }
+
+        *,
+        *::before,
+        *::after {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Space Mono', monospace;
+            background: var(--bg);
+            color: var(--text);
+            height: 100dvh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            transition: background .3s, color .3s;
+        }
+
+        /* ─── TOP BAR ─── */
+        #topbar {
+            background: var(--bg2);
+            border-bottom: 1px solid var(--border);
+            padding: 0 14px;
+            height: 54px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-shrink: 0;
+            z-index: 900;
+            transition: background .3s, border-color .3s;
+        }
+
+        #logo {
+            font-family: 'Syne', sans-serif;
+            font-weight: 800;
+            font-size: 16px;
+            color: var(--text);
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            flex-shrink: 0;
+        }
+
+        #logo-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--accent);
+            animation: blink 2.2s ease-in-out infinite;
+        }
+
+        @keyframes blink {
+
+            0%,
+            100% {
+                opacity: 1;
+                transform: scale(1)
+            }
+
+            50% {
+                opacity: .35;
+                transform: scale(.6)
+            }
+        }
+
+        #input-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex: 1;
+            min-width: 0;
+        }
+
+        .inp-wrap {
+            position: relative;
+            flex: 1;
+            min-width: 0;
+        }
+
+        .inp-wrap input {
+            width: 100%;
+            background: var(--bg3);
+            border: 1.5px solid var(--border);
+            color: var(--text);
+            font-family: 'Space Mono', monospace;
+            font-size: 11px;
+            padding: 18px 32px 6px 10px;
+            border-radius: 8px;
+            outline: none;
+            transition: all .18s;
+        }
+
+        .inp-wrap input::placeholder {
+            color: transparent;
+        }
+
+        .inp-wrap input:focus {
+            border-color: var(--accent);
+            background: var(--surface);
+            box-shadow: 0 0 0 3px var(--accent-g);
+        }
+
+        .inp-label {
+            position: absolute;
+            left: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-family: 'Syne', sans-serif;
+            font-weight: 700;
+            font-size: 9px;
+            letter-spacing: 1.2px;
+            text-transform: uppercase;
+            color: var(--text3);
+            pointer-events: none;
+            transition: all .15s;
+        }
+
+        .inp-wrap input:focus~.inp-label,
+        .inp-wrap input:not(:placeholder-shown)~.inp-label {
+            top: 7px;
+            transform: none;
+            font-size: 8px;
+            color: var(--accent);
+        }
+
+        .gps-btn {
+            position: absolute;
+            right: 7px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            color: var(--text3);
+            font-size: 13px;
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 4px;
+            transition: all .15s;
+            line-height: 1;
+        }
+
+        .gps-btn:hover {
+            color: var(--accent);
+            background: var(--accent-g);
+        }
+
+        .gps-btn.locating {
+            color: var(--blue);
+            animation: spin .8s linear infinite;
+        }
+
+        .ac-drop {
+            display: none;
+            position: absolute;
+            top: calc(100% + 5px);
+            left: 0;
+            right: 0;
+            background: var(--surface);
+            border: 1px solid var(--border2);
+            border-radius: 8px;
+            max-height: 210px;
+            overflow-y: auto;
+            z-index: 9999;
+            box-shadow: 0 12px 40px rgba(0, 0, 0, .35);
+        }
+
+        .ac-item {
+            padding: 9px 12px;
+            cursor: pointer;
+            border-bottom: 1px solid var(--border);
+            transition: background .1s;
+        }
+
+        .ac-item:last-child {
+            border-bottom: none;
+        }
+
+        .ac-item:hover {
+            background: var(--bg3);
+        }
+
+        .ac-item b {
+            display: block;
+            font-size: 12px;
+            color: var(--text);
+        }
+
+        .ac-item span {
+            font-size: 10px;
+            color: var(--text2);
+        }
+
+        .swap-btn {
+            background: var(--bg3);
+            border: 1.5px solid var(--border);
+            color: var(--text2);
+            font-size: 13px;
+            padding: 7px 9px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all .15s;
+            flex-shrink: 0;
+        }
+
+        .swap-btn:hover {
+            color: var(--accent);
+            border-color: var(--accent);
+        }
+
+        .sel-row {
+            display: flex;
+            gap: 5px;
+            flex-shrink: 0;
+        }
+
+        select {
+            background: var(--bg3);
+            border: 1.5px solid var(--border);
+            color: var(--text);
+            font-family: 'Space Mono', monospace;
+            font-size: 10px;
+            padding: 6px 7px;
+            border-radius: 8px;
+            outline: none;
+            cursor: pointer;
+            transition: all .15s;
+        }
+
+        select:focus {
+            border-color: var(--accent);
+        }
+
+        #btn-row {
+            display: flex;
+            gap: 6px;
+            flex-shrink: 0;
+        }
+
+        #findBtn {
+            background: var(--accent);
+            color: #fff;
+            border: none;
+            font-family: 'Syne', sans-serif;
+            font-weight: 800;
+            font-size: 12px;
+            letter-spacing: .4px;
+            padding: 9px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: all .15s;
+        }
+
+        #findBtn:hover:not(:disabled) {
+            background: var(--accent-d);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 16px rgba(255, 92, 26, .4);
+        }
+
+        #findBtn:disabled {
+            opacity: .4;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        #clearBtn {
+            background: transparent;
+            color: var(--text3);
+            border: 1.5px solid var(--border);
+            font-family: 'Space Mono', monospace;
+            font-size: 11px;
+            padding: 9px 11px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all .15s;
+        }
+
+        #clearBtn:hover {
+            color: var(--red);
+            border-color: var(--red);
+        }
+
+        #themeBtn {
+            background: var(--bg3);
+            border: 1.5px solid var(--border);
+            color: var(--text2);
+            font-size: 14px;
+            padding: 7px 9px;
+            border-radius: 8px;
+            cursor: pointer;
+            flex-shrink: 0;
+            transition: all .15s;
+            line-height: 1;
+        }
+
+        #themeBtn:hover {
+            border-color: var(--blue);
+            color: var(--blue);
+        }
+
+        /* ─── STATUS ─── */
+        #statusBar {
+            height: 30px;
+            background: var(--bg);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 0 14px;
+            flex-shrink: 0;
+            font-size: 11px;
+            color: var(--text2);
+            transition: background .3s, border-color .3s;
+        }
+
+        #statusBar.err {
+            color: var(--red);
+        }
+
+        #statusBar.ok {
+            color: var(--green);
+        }
+
+        #statusBar.warn {
+            color: var(--yellow);
+        }
+
+        #spinner {
+            width: 12px;
+            height: 12px;
+            border: 2px solid var(--border2);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin .7s linear infinite;
+            display: none;
+            flex-shrink: 0;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg)
+            }
+        }
+
+        /* ─── BODY / MAP ─── */
+        #body {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        #map {
+            flex: 1;
+        }
+
+        [data-theme="dark"] .leaflet-tile {
+            filter: invert(1) hue-rotate(180deg) brightness(.82) contrast(1.05) saturate(.55);
+        }
+
+        [data-theme="dark"] .leaflet-container {
+            background: #1a1a24 !important;
+        }
+
+        .leaflet-control-attribution {
+            display: none !important;
+        }
+
+        .leaflet-control-zoom {
+            border: none !important;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, .3) !important;
+        }
+
+        .leaflet-control-zoom a {
+            background: var(--surface) !important;
+            color: var(--text) !important;
+            border-bottom: 1px solid var(--border) !important;
+            font-size: 15px !important;
+        }
+
+        .leaflet-control-zoom a:hover {
+            background: var(--bg3) !important;
+        }
+
+        /* ─── SIDEBAR ─── */
+        #sidebar {
+            width: 310px;
+            background: var(--bg2);
+            border-left: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            flex-shrink: 0;
+            transition: background .3s, border-color .3s;
+        }
+
+        #dragHandle {
+            width: 38px;
+            height: 4px;
+            background: var(--border2);
+            border-radius: 20px;
+            margin: 9px auto 0;
+            flex-shrink: 0;
+            display: none;
+        }
+
+        #infoBar {
+            display: none;
+            padding: 10px 12px;
+            background: var(--bg);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 6px;
+        }
+
+        .info-cell {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 8px 10px;
+        }
+
+        .info-cell .lbl {
+            font-family: 'Syne', sans-serif;
+            font-size: 8px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            color: var(--text3);
+        }
+
+        .info-cell .val {
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--text);
+            margin-top: 3px;
+        }
+
+        .info-cell.c-a .val {
+            color: var(--accent);
+        }
+
+        .info-cell.c-g .val {
+            color: var(--green);
+        }
+
+        .info-cell.c-b .val {
+            color: var(--blue);
+        }
+
+        #sidebarTitle {
+            padding: 10px 14px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-shrink: 0;
+        }
+
+        #sidebarTitle h2 {
+            font-family: 'Syne', sans-serif;
+            font-size: 12px;
+            font-weight: 800;
+            color: var(--text);
+            letter-spacing: .8px;
+        }
+
+        #sidebarTitle .ctrl {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+        }
+
+        #stepBadge {
+            background: var(--accent);
+            color: #fff;
+            font-family: 'Syne', sans-serif;
+            font-size: 9px;
+            font-weight: 700;
+            padding: 2px 8px;
+            border-radius: 20px;
+        }
+
+        /* FIX #4 — sidebarClose styled */
+        #sidebarClose {
+            background: transparent;
+            border: none;
+            color: var(--text3);
+            font-size: 15px;
+            cursor: pointer;
+            padding: 2px 6px;
+            border-radius: 4px;
+            transition: color .15s;
+            display: none;
+        }
+
+        #sidebarClose:hover {
+            color: var(--red);
+        }
+
+        #stepList {
+            flex: 1;
+            overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: var(--border2) transparent;
+        }
+
+        #stepList::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        #stepList::-webkit-scrollbar-thumb {
+            background: var(--border2);
+            border-radius: 2px;
+        }
+
+        .step {
+            display: flex;
+            gap: 10px;
+            padding: 10px 14px;
+            border-bottom: 1px solid var(--border);
+            cursor: pointer;
+            align-items: flex-start;
+            transition: background .1s;
+        }
+
+        .step:hover {
+            background: var(--bg3);
+        }
+
+        .step-num {
+            font-family: 'Syne', sans-serif;
+            font-size: 10px;
+            font-weight: 800;
+            color: var(--accent);
+            min-width: 22px;
+            padding-top: 2px;
+        }
+
+        .step-icon {
+            font-size: 14px;
+            min-width: 18px;
+            padding-top: 1px;
+        }
+
+        .step-instr {
+            font-size: 11px;
+            color: var(--text);
+            line-height: 1.45;
+        }
+
+        .step-meta {
+            font-size: 10px;
+            color: var(--text2);
+            margin-top: 3px;
+            font-family: 'Syne', sans-serif;
+        }
+
+        .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            gap: 14px;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .empty-state .icon {
+            font-size: 34px;
+            opacity: .25;
+        }
+
+        .empty-state p {
+            font-size: 11px;
+            color: var(--text2);
+            line-height: 1.7;
+        }
+
+        #algoBox {
+            padding: 12px 14px;
+            background: var(--bg);
+            border-top: 1px solid var(--border);
+            font-size: 10px;
+            color: var(--text2);
+            line-height: 1.65;
+            flex-shrink: 0;
+        }
+
+        #algoBox b {
+            color: var(--accent);
+        }
+
+        .tag {
+            display: inline-block;
+            background: var(--bg3);
+            border: 1px solid var(--border2);
+            border-radius: 4px;
+            padding: 1px 5px;
+            font-size: 9px;
+            color: var(--text);
+            margin: 1px 1px 0 0;
+        }
+
+        /* ─── MOBILE OVERLAY / FAB ─── */
+        #sidebarOverlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, .55);
+            z-index: 1400;
+            backdrop-filter: blur(2px);
+        }
+
+        #sidebarOverlay.visible {
+            display: block;
+        }
+
+        /* FIX #3 — single button, placed once in HTML */
+        #sidebarToggle {
+            display: none;
+            position: fixed;
+            bottom: 22px;
+            right: 22px;
+            z-index: 2000;
+            background: var(--accent);
+            color: #fff;
+            border: none;
+            border-radius: 100px;
+            padding: 12px 20px;
+            font-family: 'Syne', sans-serif;
+            font-weight: 800;
+            font-size: 13px;
+            box-shadow: 0 4px 24px rgba(255, 92, 26, .5);
+            cursor: pointer;
+            align-items: center;
+            gap: 7px;
+            transition: all .15s;
+        }
+
+        #sidebarToggle:hover {
+            background: var(--accent-d);
+            transform: translateY(-2px);
+        }
+
+        /* ─── RESPONSIVE TABLET ─── */
+        @media(max-width:1000px) {
+            #sidebar {
+                position: fixed;
+                right: 0;
+                top: 0;
+                bottom: 0;
+                z-index: 1500;
+                transform: translateX(100%);
+                transition: transform .3s cubic-bezier(.4, 0, .2, 1), background .3s;
+                box-shadow: -8px 0 40px rgba(0, 0, 0, .4);
+            }
+
+            #sidebar.open {
+                transform: none;
+            }
+
+            #sidebarToggle {
+                display: flex;
+            }
+
+            #sidebarClose {
+                display: block;
+            }
+        }
+
+        /* ─── RESPONSIVE MOBILE ─── */
+        @media(max-width:650px) {
+            #topbar {
+                height: auto;
+                flex-direction: column;
+                align-items: stretch;
+                padding: 10px 12px;
+                gap: 8px;
+            }
+
+            #topbar-top {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+            }
+
+            #input-row {
+                flex-direction: column;
+            }
+
+            .inp-wrap {
+                width: 100%;
+            }
+
+            .sel-row {
+                flex-wrap: wrap;
+            }
+
+            select {
+                flex: 1;
+                min-width: 90px;
+                font-size: 11px;
+                padding: 8px;
+            }
+
+            #btn-row {
+                width: 100%;
+            }
+
+            #findBtn {
+                flex: 1;
+            }
+
+            #clearBtn {
+                padding: 9px 12px;
+            }
+
+            #sidebar {
+                width: 100%;
+                top: auto;
+                right: 0;
+                left: 0;
+                bottom: 0;
+                height: 62vh;
+                border-left: none;
+                border-top: 2px solid var(--border2);
+                border-radius: 18px 18px 0 0;
+                transform: translateY(100%);
+            }
+
+            #sidebar.open {
+                transform: none;
+            }
+
+            #dragHandle {
+                display: block;
+            }
+
+            #sidebarClose {
+                display: block;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- TOP BAR -->
+    <div id="topbar">
+        <div id="topbar-top">
+            <div id="logo">
+                <div id="logo-dot"></div>PATHFINDER
+            </div>
         </div>
-      `;
-            });
+
+        <div id="input-row">
+            <div class="inp-wrap">
+                <input id="startInp" type="text" placeholder="Origin" autocomplete="off" />
+                <div class="ac-drop" id="startDrop"></div>
+                <span class="inp-label">▲ ORIGIN</span>
+                <!-- GPS button — only on origin field -->
+                <button class="gps-btn" id="gpsBtn" title="Use my current location"
+                    onclick="useMyLocation()">📍</button>
+            </div>
+
+            <button class="swap-btn" title="Swap" onclick="swapLocations()">⇅</button>
+
+            <div class="inp-wrap">
+                <input id="endInp" type="text" placeholder="Destination" autocomplete="off" />
+                <div class="ac-drop" id="endDrop"></div>
+                <span class="inp-label">▼ DESTINATION</span>
+            </div>
+
+            <div class="sel-row">
+                <select id="algoSel">
+                    <option value="dijkstra">Dijkstra</option>
+                    <option value="astar">A* Search</option>
+                    <option value="bfs">BFS</option><!-- FIX #7: label updated in JS -->
+                </select>
+                <select id="modeSel">
+                    <option value="driving-car">🚗 Car</option>
+                    <option value="driving-hgv">🚛 HGV</option>
+                    <option value="cycling-regular">🚴 Bike</option>
+                    <option value="foot-walking">🚶 Walk</option>
+                    <option value="foot-hiking">🥾 Hike</option>
+                </select>
+                <select id="prefSel">
+                    <option value="recommended">Recommended</option>
+                    <option value="shortest">Shortest</option>
+                    <option value="fastest">Fastest</option>
+                </select>
+            </div>
+
+            <div id="btn-row">
+                <button id="findBtn" onclick="findPath()">▶ ROUTE</button>
+                <button id="clearBtn" onclick="clearAll()">✕</button>
+                <button id="themeBtn" onclick="toggleTheme()" title="Toggle dark/light mode">🌙</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- STATUS -->
+    <div id="statusBar">
+        <div id="spinner"></div>
+        <span id="statusTxt">Click map to set origin &amp; destination, or type above. Use 📍 for GPS location.</span>
+    </div>
+
+    <!-- BODY -->
+    <div id="body">
+        <div id="map"></div>
+
+        <div id="sidebar">
+            <!-- FIX #5: drag handle with CSS, shown only on mobile -->
+            <div id="dragHandle"></div>
+
+            <div id="infoBar">
+                <div class="info-grid">
+                    <div class="info-cell c-a">
+                        <div class="lbl">Distance</div>
+                        <div class="val" id="i-dist">—</div>
+                    </div>
+                    <div class="info-cell c-g">
+                        <div class="lbl">Duration</div>
+                        <div class="val" id="i-dur">—</div>
+                    </div>
+                    <div class="info-cell c-b">
+                        <div class="lbl">Algorithm</div>
+                        <div class="val" id="i-algo">—</div>
+                    </div>
+                    <div class="info-cell">
+                        <div class="lbl">Road Pts</div>
+                        <div class="val" id="i-seg">—</div>
+                    </div>
+                    <div class="info-cell">
+                        <div class="lbl">Nodes Exp.</div>
+                        <div class="val" id="i-nodes">—</div>
+                    </div>
+                    <div class="info-cell">
+                        <div class="lbl">Runtime</div>
+                        <div class="val" id="i-exec">—</div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="sidebarTitle">
+                <h2>TURN-BY-TURN</h2>
+                <div class="ctrl">
+                    <span id="stepBadge">0 STEPS</span>
+                    <!-- FIX #4: styled close button -->
+                    <button id="sidebarClose" onclick="closeSidebar()">✕</button>
+                </div>
+            </div>
+
+            <div id="stepList">
+                <div class="empty-state">
+                    <div class="icon">🗺</div>
+                    <p>Set origin &amp; destination,<br>then hit <b>▶ ROUTE</b><br>to compute the optimal path.</p>
+                </div>
+            </div>
+
+            <div id="algoBox">
+                <b>DIJKSTRA'S ALGORITHM</b><br>
+                Explores nodes by always expanding the lowest-cost frontier via a
+                <span class="tag">Min-Heap PQ</span>.
+                Guarantees globally optimal path. <span class="tag">O((V+E) log V)</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- FIX #3: single overlay + single toggle button -->
+    <div id="sidebarOverlay" onclick="closeSidebar()"></div>
+    <button id="sidebarToggle" onclick="toggleSidebar()">🗺 DIRECTIONS</button>
+
+    <script>
+        /* ─── CONFIG ─── */
+        const ORS_KEY = 'eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjZjZDRiMzVmYWU0OTQ0NGE5ZDYxM2JhODlkZTI0MmQzIiwiaCI6Im11cm11cjY0In0=';
+        const ORS_BASE = 'https://api.openrouteservice.org';
+
+        /* ─── MAP ─── */
+        const map = L.map('map', { zoomControl: false }).setView([22.5726, 88.3639], 11);
+        L.control.zoom({ position: 'bottomleft' }).addTo(map);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+
+        let startMarker = null, endMarker = null, routeLayer = null, straightLayer = null, gpsMarker = null;
+        let startCoords = null, endCoords = null, clickState = 'start';
+
+        map.on('click', e => {
+            const { lat, lng } = e.latlng;
+            if (clickState === 'start') { setStart([lat, lng], `${lat.toFixed(5)}, ${lng.toFixed(5)}`); clickState = 'end'; setStatus('Origin set. Click map to place destination.'); }
+            else { setEnd([lat, lng], `${lat.toFixed(5)}, ${lng.toFixed(5)}`); clickState = 'start'; setStatus('Destination set — press ▶ ROUTE.'); }
         });
-</script>
+
+        function setStart(c, label) { startCoords = c; document.getElementById('startInp').value = label; placeMarker('start', c[0], c[1]); }
+        function setEnd(c, label) { endCoords = c; document.getElementById('endInp').value = label; placeMarker('end', c[0], c[1]); }
+
+        /* ─── SWAP ─── */
+        function swapLocations() {
+            const [tc, ts, ec, es] = [startCoords, document.getElementById('startInp').value, endCoords, document.getElementById('endInp').value];
+            startCoords = ec; document.getElementById('startInp').value = es;
+            endCoords = tc; document.getElementById('endInp').value = ts;
+            if (startCoords) placeMarker('start', startCoords[0], startCoords[1]);
+            else { if (startMarker) { map.removeLayer(startMarker); startMarker = null; } }
+            if (endCoords) placeMarker('end', endCoords[0], endCoords[1]);
+            else { if (endMarker) { map.removeLayer(endMarker); endMarker = null; } }
+        }
+
+        /* ─── GPS / CURRENT LOCATION ─── */
+        function useMyLocation() {
+            if (!navigator.geolocation) { setStatus('Geolocation not supported by your browser.', 'err'); return; }
+            const btn = document.getElementById('gpsBtn');
+            btn.classList.add('locating'); btn.textContent = '⟳';
+            setStatus('Acquiring your location…', '', true);
+
+            navigator.geolocation.getCurrentPosition(async pos => {
+                btn.classList.remove('locating'); btn.textContent = '📍';
+                const { latitude: lat, longitude: lon, accuracy } = pos.coords;
+                let label = `${lat.toFixed(5)}, ${lon.toFixed(5)}`;
+                try {
+                    const r = await fetch(`${ORS_BASE}/geocode/reverse?api_key=${ORS_KEY}&point.lat=${lat}&point.lon=${lon}&size=1`);
+                    if (r.ok) { const d = await r.json(); if (d.features && d.features[0]) label = d.features[0].properties.label || label; }
+                } catch (_) { }
+
+                setStart([lat, lon], label);
+                map.setView([lat, lon], 14);
+
+                // GPS pulse marker
+                if (gpsMarker) map.removeLayer(gpsMarker);
+                const ic = L.divIcon({
+                    className: '', html: `
+      <div style="position:relative;width:24px;height:24px">
+        <div style="position:absolute;inset:0;border-radius:50%;background:rgba(59,130,246,.2);border:2px solid #3b82f6;animation:gps-pulse 1.6s ease-out infinite"></div>
+        <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:10px;height:10px;border-radius:50%;background:#3b82f6;border:2px solid #fff;box-shadow:0 1px 8px rgba(59,130,246,.8)"></div>
+      </div>`, iconSize: [24, 24], iconAnchor: [12, 12]
+                });
+                gpsMarker = L.marker([lat, lon], { icon: ic }).bindPopup(`<b>Your location</b><br><small>Accuracy: ±${Math.round(accuracy)}m</small>`).addTo(map);
+                setStatus(`📍 Located (±${Math.round(accuracy)}m) — set as origin. Now set your destination.`, 'ok');
+            }, err => {
+                btn.classList.remove('locating'); btn.textContent = '📍';
+                const m = { 1: 'Location permission denied. Allow it in browser settings.', 2: 'Location unavailable. Try again or enter manually.', 3: 'Request timed out.' };
+                setStatus(m[err.code] || 'Could not get location.', 'err');
+            }, { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 });
+        }
+
+        /* ─── MARKERS ─── */
+        function placeMarker(type, lat, lon) {
+            const color = type === 'start' ? '#22c55e' : '#ff5c1a';
+            const ic = L.divIcon({ className: '', html: `<div style="width:15px;height:15px;border-radius:50%;background:${color};border:3px solid rgba(255,255,255,.9);box-shadow:0 2px 10px rgba(0,0,0,.6)"></div>`, iconSize: [15, 15], iconAnchor: [7, 7] });
+            const tip = type === 'start' ? 'ORIGIN' : 'DESTINATION';
+            if (type === 'start') { if (startMarker) map.removeLayer(startMarker); startMarker = L.marker([lat, lon], { icon: ic }).bindTooltip(`<b>${tip}</b>`).addTo(map); }
+            else { if (endMarker) map.removeLayer(endMarker); endMarker = L.marker([lat, lon], { icon: ic }).bindTooltip(`<b>${tip}</b>`).addTo(map); }
+        }
+
+        /* ─── THEME ─── */
+        function toggleTheme() {
+            const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+            document.documentElement.setAttribute('data-theme', isDark ? 'light' : 'dark');
+            document.getElementById('themeBtn').textContent = isDark ? '🌙' : '☀️';
+        }
+
+        /* ─── MIN-HEAP ─── */
+        class MinHeap { constructor() { this.h = []; } push(p, v) { this.h.push([p, v]); this._up(this.h.length - 1); } pop() { const t = this.h[0], l = this.h.pop(); if (this.h.length) { this.h[0] = l; this._down(0); } return t; } get size() { return this.h.length; } _up(i) { while (i > 0) { const p = (i - 1) >> 1; if (this.h[p][0] > this.h[i][0]) { [this.h[p], this.h[i]] = [this.h[i], this.h[p]]; i = p; } else break; } } _down(i) { const n = this.h.length; while (true) { let s = i, l = 2 * i + 1, r = 2 * i + 2; if (l < n && this.h[l][0] < this.h[s][0]) s = l; if (r < n && this.h[r][0] < this.h[s][0]) s = r; if (s !== i) { [this.h[s], this.h[i]] = [this.h[i], this.h[s]]; i = s; } else break; } } }
+
+        /* ─── HAVERSINE ─── */
+        function haversine(la1, lo1, la2, lo2) { const R = 6371, dL = (la2 - la1) * Math.PI / 180, dO = (lo2 - lo1) * Math.PI / 180; const a = Math.sin(dL / 2) ** 2 + Math.cos(la1 * Math.PI / 180) * Math.cos(la2 * Math.PI / 180) * Math.sin(dO / 2) ** 2; return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)); }
+
+        /* ─── DIJKSTRA ─── */
+        function dijkstra(adj, src, dst) {
+            const dist = new Map(), prev = new Map(), vis = new Set(), pq = new MinHeap();
+            dist.set(src, 0); pq.push(0, src);
+            while (pq.size) { const [d, u] = pq.pop(); if (vis.has(u)) continue; vis.add(u); if (u === dst) break; for (const [v, w] of (adj.get(u) || [])) { const nd = d + w; if (!dist.has(v) || nd < dist.get(v)) { dist.set(v, nd); prev.set(v, u); pq.push(nd, v); } } }
+            return { prev, visited: vis.size };
+        }
+
+        /* ─── A* ─── */
+        function astar(adj, src, dst, coords) {
+            const g = new Map(), prev = new Map(), vis = new Set(), pq = new MinHeap();
+            const h = id => { const a = coords.get(id), b = coords.get(dst); return a && b ? haversine(a[0], a[1], b[0], b[1]) : 0; };
+            g.set(src, 0); pq.push(h(src), src);
+            while (pq.size) { const [, u] = pq.pop(); if (vis.has(u)) continue; vis.add(u); if (u === dst) break; for (const [v, w] of (adj.get(u) || [])) { const ng = (g.get(u) || 0) + w; if (!g.has(v) || ng < g.get(v)) { g.set(v, ng); prev.set(v, u); pq.push(ng + h(v), v); } } }
+            return { prev, visited: vis.size };
+        }
+
+        /* ─── BFS — FIX #11: pointer-based queue, O(V+E) ─── */
+        function bfs(adj, src, dst) {
+            const prev = new Map(), vis = new Set([src]), q = [src];
+            let head = 0;
+            while (head < q.length) {
+                const u = q[head++];
+                if (u === dst) break;
+                for (const [v] of (adj.get(u) || [])) { if (!vis.has(v)) { vis.add(v); prev.set(v, u); q.push(v); } }
+            }
+            return { prev, visited: vis.size };
+        }
+
+        function reconstructPath(prev, src, dst) { const p = []; let c = dst; while (c !== undefined) { p.unshift(c); if (c === src) return p; c = prev.get(c); } return null; }
+
+        /* ─── AUTOCOMPLETE ─── */
+        const acT = {};
+        function setupAC(inpId, dropId, onPick) {
+            const inp = document.getElementById(inpId), drop = document.getElementById(dropId);
+            inp.addEventListener('input', () => {
+                clearTimeout(acT[inpId]);
+                const q = inp.value.trim();
+                if (q.length < 2) { drop.style.display = 'none'; return; }
+                acT[inpId] = setTimeout(async () => {
+                    try {
+                        const r = await fetch(`${ORS_BASE}/geocode/autocomplete?api_key=${ORS_KEY}&text=${encodeURIComponent(q)}&size=6`);
+                        if (!r.ok) throw new Error(`AC ${r.status}`);
+                        const data = await r.json(), feats = data.features || [];
+                        drop.innerHTML = '';
+                        if (!feats.length) { drop.style.display = 'none'; return; }
+                        for (const f of feats) {
+                            const name = f.properties.name || '', label = f.properties.label || '';
+                            const [lon, lat] = f.geometry.coordinates;
+                            const div = document.createElement('div'); div.className = 'ac-item';
+                            div.innerHTML = `<b>${name}</b><span>${label}</span>`;
+                            div.addEventListener('mousedown', e => { e.preventDefault(); inp.value = label; onPick([lat, lon]); drop.style.display = 'none'; });
+                            drop.appendChild(div);
+                        }
+                        drop.style.display = 'block';
+                    } catch (e) { drop.style.display = 'none'; console.error('Autocomplete failed:', e); } // FIX #12
+                }, 350);
+            });
+            inp.addEventListener('blur', () => setTimeout(() => drop.style.display = 'none', 200));
+            inp.addEventListener('focus', () => { if (drop.children.length) drop.style.display = 'block'; });
+        }
+        setupAC('startInp', 'startDrop', c => { startCoords = c; placeMarker('start', c[0], c[1]); map.setView(c, 13); });
+        setupAC('endInp', 'endDrop', c => { endCoords = c; placeMarker('end', c[0], c[1]); });
+
+        /* ─── GEOCODE FALLBACK ─── */
+        async function geocodeFallback(text) {
+            const r = await fetch(`${ORS_BASE}/geocode/search?api_key=${ORS_KEY}&text=${encodeURIComponent(text)}&size=1`);
+            if (!r.ok) throw new Error(`Geocoding failed (${r.status})`);
+            const data = await r.json();
+            if (!data.features || !data.features.length) throw new Error(`Cannot find: "${text}"`);
+            const f = data.features[0]; return [f.geometry.coordinates[1], f.geometry.coordinates[0]];
+        }
+
+        /* ─── ORS CALL — FIX #9: improved error messages ─── */
+        async function callOrs(body, mode) {
+            const res = await fetch(`${ORS_BASE}/v2/directions/${mode}/geojson`, {
+                method: 'POST',
+                headers: { 'Authorization': ORS_KEY, 'Content-Type': 'application/json', 'Accept': 'application/json,application/geo+json' },
+                body: JSON.stringify(body)
+            });
+            if (!res.ok) {
+                if (res.status === 401) throw new Error('Invalid API key. Check your ORS credentials.');
+                if (res.status === 403) throw new Error('Access denied or quota exceeded. Try again later.');
+                if (res.status === 429) throw new Error('Too many requests. Wait a moment and try again.');
+                if (res.status >= 500) throw new Error('Routing server temporarily unavailable. Try again later.');
+                const ed = await res.json().catch(() => ({}));
+                throw new Error(ed.error?.message || ed.message || `ORS error ${res.status}`);
+            }
+            return res;
+        }
+
+        /* ─── HELPERS ─── */
+        function fmtDist(m) { return m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.round(m)} m`; }
+        function fmtDur(s) { const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60); if (h > 0) return `${h}h ${m}m`; if (m > 0) return `${m} min`; return `${Math.round(s)}s`; }
+        const ICONS = { 0: '🏁', 1: '↑', 2: '↗', 3: '→', 4: '↘', 5: '↓', 6: '↙', 7: '←', 8: '↖', 10: '⤴', 11: '⤵', 12: '🔄', 13: '↑', 14: '⛴', 15: '⛳' };
+
+        /* ─── MAIN ─── */
+        async function findPath() {
+            const startTxt = document.getElementById('startInp').value.trim();
+            const endTxt = document.getElementById('endInp').value.trim();
+            const algo = document.getElementById('algoSel').value;
+            const mode = document.getElementById('modeSel').value;
+            const pref = document.getElementById('prefSel').value;
+            if (!startTxt || !endTxt) { setStatus('Enter both origin and destination.', 'err'); return; }
+
+            document.getElementById('findBtn').disabled = true;
+            document.getElementById('infoBar').style.display = 'none';
+            if (routeLayer) { map.removeLayer(routeLayer); routeLayer = null; }
+            if (straightLayer) { map.removeLayer(straightLayer); straightLayer = null; }
+
+            try {
+                setStatus('Geocoding locations…', '', true);
+                if (!startCoords) { startCoords = await geocodeFallback(startTxt); placeMarker('start', startCoords[0], startCoords[1]); }
+                if (!endCoords) { endCoords = await geocodeFallback(endTxt); placeMarker('end', endCoords[0], endCoords[1]); }
+
+                const [sLat, sLon] = startCoords, [eLat, eLon] = endCoords;
+                const crow = haversine(sLat, sLon, eLat, eLon);
+                straightLayer = L.polyline([[sLat, sLon], [eLat, eLon]], { color: '#ff5c1a', weight: 2, dashArray: '6 5', opacity: .4 }).addTo(map);
+                map.fitBounds([[sLat, sLon], [eLat, eLon]], { padding: [60, 60] });
+                setStatus(`As-the-crow-flies: ${crow.toFixed(1)} km — Fetching road route…`, '', true);
+
+                const orsBody = { coordinates: [[sLon, sLat], [eLon, eLat]], preference: pref, geometry: true, instructions: true, units: 'km', language: 'en' };
+                const orsRes = await callOrs(orsBody, mode);
+                const orsData = await orsRes.json();
+                const feature = orsData.features[0];
+                const summary = feature.properties.summary;
+                const segments = feature.properties.segments;
+                const rawCoords = feature.geometry.coordinates;
+
+                const algoNames = { dijkstra: 'Dijkstra', astar: 'A*', bfs: 'BFS' };
+                setStatus(`${rawCoords.length.toLocaleString()} road pts — running ${algoNames[algo]}…`, '', true);
+
+                const adj = new Map(), coords = new Map();
+                for (let i = 0; i < rawCoords.length; i++) { const [lon, lat] = rawCoords[i]; coords.set(i, [lat, lon]); adj.set(i, []); }
+                for (let i = 0; i < rawCoords.length - 1; i++) { const [aL, aO] = coords.get(i), [bL, bO] = coords.get(i + 1); const d = haversine(aL, aO, bL, bO); adj.get(i).push([i + 1, d]); adj.get(i + 1).push([i, d]); }
+
+                const t0 = performance.now();
+                let result;
+                if (algo === 'dijkstra') result = dijkstra(adj, 0, rawCoords.length - 1);
+                else if (algo === 'astar') result = astar(adj, 0, rawCoords.length - 1, coords);
+                else result = bfs(adj, 0, rawCoords.length - 1);
+                const execMs = (performance.now() - t0).toFixed(2);
+
+                const path = reconstructPath(result.prev, 0, rawCoords.length - 1);
+                if (!path) throw new Error('Could not reconstruct path. Please try again.');
+
+                const latLngs = path.map(i => coords.get(i)).map(([lat, lon]) => [lat, lon]);
+                routeLayer = L.polyline(latLngs, { color: '#3b82f6', weight: 5, opacity: .9, lineJoin: 'round', lineCap: 'round' }).addTo(map);
+                map.fitBounds(routeLayer.getBounds(), { padding: [50, 50] });
+
+                document.getElementById('i-algo').textContent = algoNames[algo];
+                document.getElementById('i-dist').textContent = `${summary.distance.toFixed(2)} km`;
+                document.getElementById('i-dur').textContent = fmtDur(summary.duration);
+                document.getElementById('i-seg').textContent = rawCoords.length.toLocaleString();
+                document.getElementById('i-nodes').textContent = result.visited.toLocaleString();
+                document.getElementById('i-exec').textContent = `${execMs}ms`;
+                document.getElementById('infoBar').style.display = 'block';
+
+                const stepList = document.getElementById('stepList');
+                stepList.innerHTML = '';
+                let stepNum = 0;
+                for (const seg of segments) {
+                    for (const step of seg.steps) {
+                        stepNum++;
+                        const div = document.createElement('div'); div.className = 'step';
+                        div.innerHTML = `
+          <div class="step-num">${String(stepNum).padStart(2, '0')}</div>
+          <div class="step-icon">${ICONS[step.type] || '↑'}</div>
+          <div class="step-body">
+            <div class="step-instr">${step.instruction}</div>
+            <div class="step-meta">${fmtDist(step.distance * 1000)} · ${fmtDur(step.duration)} · ${step.name !== '-' ? step.name : 'Unnamed road'}</div>
+          </div>`;
+                        const wp = step.way_points;
+                        div.addEventListener('click', () => {
+                            if (wp && wp.length >= 2) { const c1 = coords.get(wp[0]), c2 = coords.get(wp[1] || wp[0]); if (c1 && c2) map.fitBounds([[c1[0], c1[1]], [c2[0], c2[1]]], { padding: [60, 60], maxZoom: 17 }); }
+                        });
+                        stepList.appendChild(div);
+                    }
+                }
+                document.getElementById('stepBadge').textContent = `${stepNum} STEPS`;
+
+                const n = rawCoords.length;
+                // FIX #13 — corrected A* complexity note
+                const descs = {
+                    dijkstra: `<b>DIJKSTRA'S ALGORITHM</b><br>Expands minimum-cost frontier via <span class="tag">Min-Heap PQ</span>. Guarantees globally optimal path. Explored <b>${result.visited.toLocaleString()}</b>/${n.toLocaleString()} nodes. <span class="tag">O((V+E) log V)</span>`,
+                    astar: `<b>A* SEARCH ALGORITHM</b><br>Combines Dijkstra's cost with a <span class="tag">Haversine heuristic</span> to guide toward the destination. Usually explores fewer nodes than Dijkstra. Explored <b>${result.visited.toLocaleString()}</b>/${n.toLocaleString()} nodes.`,
+                    bfs: `<b>BFS — BREADTH-FIRST SEARCH</b><br>Finds the path with the fewest <span class="tag">segments</span> in this graph, not necessarily the shortest distance. Explored <b>${result.visited.toLocaleString()}</b>/${n.toLocaleString()} nodes. <span class="tag">O(V+E)</span>`
+                };
+                document.getElementById('algoBox').innerHTML = descs[algo];
+
+                setStatus(`✓ ${summary.distance.toFixed(2)} km · ${fmtDur(summary.duration)} · ${algoNames[algo]} · ${execMs}ms`, 'ok');
+                if (window.innerWidth <= 1000) autoOpenSidebar();
+
+            } catch (err) {
+                setStatus(`✕ ${err.message}`, 'err');
+                console.error(err);
+            }
+            document.getElementById('findBtn').disabled = false;
+        }
+
+        /* ─── CLEAR ─── */
+        function clearAll() {
+            [routeLayer, straightLayer, startMarker, endMarker, gpsMarker].forEach(l => { if (l) map.removeLayer(l); });
+            routeLayer = straightLayer = startMarker = endMarker = gpsMarker = null;
+            startCoords = endCoords = null;
+            document.getElementById('startInp').value = '';
+            document.getElementById('endInp').value = '';
+            document.getElementById('infoBar').style.display = 'none';
+            document.getElementById('stepBadge').textContent = '0 STEPS';
+            document.getElementById('stepList').innerHTML = '<div class="empty-state"><div class="icon">🗺</div><p>Set origin &amp; destination,<br>then hit <b>▶ ROUTE</b><br>to compute the optimal path.</p></div>';
+            document.getElementById('algoBox').innerHTML = '<b>DIJKSTRA\'S ALGORITHM</b><br>Explores nodes by always expanding the lowest-cost frontier via a <span class="tag">Min-Heap PQ</span>. Guarantees globally optimal path. <span class="tag">O((V+E) log V)</span>';
+            clickState = 'start';
+            setStatus('Cleared. Enter new locations or click the map.');
+        }
+
+        /* ─── STATUS — FIX #10: safe className ─── */
+        function setStatus(msg, cls = '', loading = false) {
+            const bar = document.getElementById('statusBar');
+            bar.className = ''; // clear first
+            if (cls) bar.classList.add(cls);
+            document.getElementById('statusTxt').textContent = msg;
+            document.getElementById('spinner').style.display = loading ? 'block' : 'none';
+        }
+
+        /* ─── SIDEBAR — FIX #2: single toggleSidebar, FIX #14: overlay handled ─── */
+        function toggleSidebar() {
+            const sb = document.getElementById('sidebar');
+            const ov = document.getElementById('sidebarOverlay');
+            const btn = document.getElementById('sidebarToggle');
+            const isOpen = sb.classList.toggle('open');
+            ov.classList.toggle('visible', isOpen);
+            btn.textContent = isOpen ? '✕ CLOSE' : '🗺 DIRECTIONS';
+            setTimeout(() => map.invalidateSize(), 310); // FIX #15
+        }
+
+        function closeSidebar() {
+            document.getElementById('sidebar').classList.remove('open');
+            document.getElementById('sidebarOverlay').classList.remove('visible');
+            document.getElementById('sidebarToggle').textContent = '🗺 DIRECTIONS';
+            setTimeout(() => map.invalidateSize(), 310);
+        }
+
+        function autoOpenSidebar() {
+            if (!document.getElementById('sidebar').classList.contains('open')) {
+                document.getElementById('sidebar').classList.add('open');
+                document.getElementById('sidebarOverlay').classList.add('visible');
+                document.getElementById('sidebarToggle').textContent = '✕ CLOSE';
+                setTimeout(() => map.invalidateSize(), 310);
+            }
+        }
+
+        /* ─── MOBILE SWIPE TO CLOSE ─── */
+        (function () {
+            const sb = document.getElementById('sidebar'); let sY = 0;
+            sb.addEventListener('touchstart', e => { sY = e.touches[0].clientY; }, { passive: true });
+            sb.addEventListener('touchend', e => { if (e.changedTouches[0].clientY - sY > 60) closeSidebar(); }, { passive: true });
+        })();
+
+        /* ─── GPS PULSE KEYFRAME injected ─── */
+        const style = document.createElement('style');
+        style.textContent = '@keyframes gps-pulse{0%{transform:scale(.3);opacity:1}100%{transform:scale(2.5);opacity:0}}';
+        document.head.appendChild(style);
+    </script>
+</body>
+
+</html>
