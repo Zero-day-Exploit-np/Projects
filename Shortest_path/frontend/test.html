@@ -1026,7 +1026,7 @@
         let navIndex = 0;
 
         // sound function
-       function toggleVoice() {
+        function toggleVoice() {
             voiceEnabled = !voiceEnabled;
             const btn = document.getElementById('voiceBtn');
 
@@ -1049,30 +1049,30 @@
 
         // sound function
         function speakText(text) {
-                if (!voiceEnabled || !('speechSynthesis' in window)) return;
+            if (!voiceEnabled || !('speechSynthesis' in window)) return;
 
-                window.speechSynthesis.cancel();
+            window.speechSynthesis.cancel();
 
-                const utter = new SpeechSynthesisUtterance(text);
-                utter.rate = 1;
-                utter.pitch = 1;
-                utter.volume = 1;
-                utter.lang = 'en-US';
+            const utter = new SpeechSynthesisUtterance(text);
+            utter.rate = 1;
+            utter.pitch = 1;
+            utter.volume = 1;
+            utter.lang = 'en-US';
 
-                let voices = window.speechSynthesis.getVoices();
+            let voices = window.speechSynthesis.getVoices();
 
-                if (voices.length > 0) {
-                    const preferred =
-                        voices.find(v => v.lang === 'en-US') ||
-                        voices.find(v => v.lang.startsWith('en')) ||
-                        voices[0];
+            if (voices.length > 0) {
+                const preferred =
+                    voices.find(v => v.lang === 'en-US') ||
+                    voices.find(v => v.lang.startsWith('en')) ||
+                    voices[0];
 
-                    if (preferred) utter.voice = preferred;
-                }
-
-                currentVoice = utter;
-                window.speechSynthesis.speak(utter);
+                if (preferred) utter.voice = preferred;
             }
+
+            currentVoice = utter;
+            window.speechSynthesis.speak(utter);
+        }
 
         function startVoiceNavigation() {
             if (!navSteps.length) {
@@ -1087,8 +1087,12 @@
 
             navIndex = 0;
             setStatus('Voice navigation started.', 'ok');
-            speakCurrentStep();
+            speakText('Navigation started.');
+            setTimeout(() => {
+                speakCurrentStep();
+            }, 1000);
         }
+
         function speakCurrentStep() {
             if (navIndex >= navSteps.length) {
                 speakText('You have arrived at your destination.');
@@ -1111,12 +1115,21 @@
                 return;
             }
 
-            navIndex++;
-            speakCurrentStep();
+            if (navIndex < navSteps.length - 1) {
+                navIndex++;
+                speakCurrentStep();
+            } else {
+                speakText('You have arrived at your destination.');
+                setStatus('Navigation completed.', 'ok');
+            }
         }
         function cleanInstruction(text) {
             return text
                 .replace(/<[^>]*>/g, '')
+                .replace(/\bonto\b/gi, 'on to')
+                .replace(/\brd\b/gi, 'road')
+                .replace(/\bst\b/gi, 'street')
+                .replace(/\bave\b/gi, 'avenue')
                 .replace(/\s+/g, ' ')
                 .trim();
         }
@@ -1406,7 +1419,9 @@
                 document.getElementById('algoBox').innerHTML = descs[algo];
 
                 setStatus(`✓ ${summary.distance.toFixed(2)} km · ${fmtDur(summary.duration)} · ${algoNames[algo]} · ${execMs}ms`, 'ok');
-                speakText(`Route ready. Total distance ${summary.distance.toFixed(1)} kilometers. Estimated time ${fmtDur(summary.duration)}.`);
+                if (voiceEnabled) {
+                    speakText(`Route ready. Total distance ${summary.distance.toFixed(1)} kilometers. Estimated time ${fmtDur(summary.duration)}.`);
+                }
                 if (window.innerWidth <= 1000) autoOpenSidebar();
 
             } catch (err) {
@@ -1482,8 +1497,8 @@
         style.textContent = '@keyframes gps-pulse{0%{transform:scale(.3);opacity:1}100%{transform:scale(2.5);opacity:0}}';
         document.head.appendChild(style);
         window.speechSynthesis.onvoiceschanged = () => {
-                window.speechSynthesis.getVoices();
-            };
+            window.speechSynthesis.getVoices();
+        };
     </script>
 </body>
 
