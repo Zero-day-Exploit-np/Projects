@@ -355,6 +355,30 @@
             color: var(--blue);
         }
 
+        /* sound  */
+        #voiceBtn {
+            background: var(--bg3);
+            border: 1.5px solid var(--border);
+            color: var(--text2);
+            font-size: 14px;
+            padding: 7px 9px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all .15s;
+            line-height: 1;
+        }
+
+        #voiceBtn:hover {
+            border-color: var(--green);
+            color: var(--green);
+        }
+
+        #voiceBtn.active {
+            background: var(--green);
+            color: white;
+            border-color: var(--green);
+        }
+
         /* ─── STATUS ─── */
         #statusBar {
             height: 30px;
@@ -857,6 +881,7 @@
                 <button id="findBtn" onclick="findPath()">▶ ROUTE</button>
                 <button id="clearBtn" onclick="clearAll()">✕</button>
                 <button id="themeBtn" onclick="toggleTheme()" title="Toggle dark/light mode">🌙</button>
+                <button id="voiceBtn" onclick="toggleVoice()" title="Toggle voice guidance">🔊</button>
             </div>
         </div>
     </div>
@@ -945,6 +970,47 @@
 
         let startMarker = null, endMarker = null, routeLayer = null, straightLayer = null, gpsMarker = null;
         let startCoords = null, endCoords = null, clickState = 'start';
+
+        // sound
+        let voiceEnabled = false;
+        let currentVoice = null;
+
+        // sound function
+        function toggleVoice() {
+            voiceEnabled = !voiceEnabled;
+            const btn = document.getElementById('voiceBtn');
+            btn.classList.toggle('active', voiceEnabled);
+            btn.textContent = voiceEnabled ? '🔊' : '🔇';
+            setStatus(voiceEnabled ? 'Voice guidance enabled.' : 'Voice guidance disabled.', voiceEnabled ? 'ok' : 'warn');
+        }
+
+        // sound function
+        function speakText(text) {
+            if (!voiceEnabled || !('speechSynthesis' in window)) return;
+
+            window.speechSynthesis.cancel();
+
+            const utter = new SpeechSynthesisUtterance(text);
+            utter.rate = 1;
+            utter.pitch = 1;
+            utter.volume = 1;
+            utter.lang = 'en-US';
+
+            const voices = window.speechSynthesis.getVoices();
+            const preferred = voices.find(v => v.lang.includes('en'));
+            if (preferred) utter.voice = preferred;
+
+            currentVoice = utter;
+            window.speechSynthesis.speak(utter);
+        }
+
+        function cleanInstruction(text) {
+            return text
+                .replace(/<[^>]*>/g, '')
+                .replace(/\s+/g, ' ')
+                .trim();
+        }
+
 
         map.on('click', e => {
             const { lat, lng } = e.latlng;
@@ -1199,7 +1265,18 @@
           </div>`;
                         const wp = step.way_points;
                         div.addEventListener('click', () => {
-                            if (wp && wp.length >= 2) { const c1 = coords.get(wp[0]), c2 = coords.get(wp[1] || wp[0]); if (c1 && c2) map.fitBounds([[c1[0], c1[1]], [c2[0], c2[1]]], { padding: [60, 60], maxZoom: 17 }); }
+                            if (wp && wp.length >= 2) {
+                                const c1 = coords.get(wp[0]), c2 = coords.get(wp[1] || wp[0]);
+                                if (c1 && c2) {
+                                    map.fitBounds([[c1[0], c1[1]], [c2[0], c2[1]]], {
+                                        padding: [60, 60],
+                                        maxZoom: 17
+                                    });
+                                }
+                            }
+
+                            const spoken = cleanInstruction(step.instruction);
+                            speakText(`${spoken}. Continue for ${fmtDist(step.distance * 1000)}.`);
                         });
                         stepList.appendChild(div);
                     }
