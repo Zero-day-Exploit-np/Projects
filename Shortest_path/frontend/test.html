@@ -925,9 +925,9 @@
 
             <div id="btn-row">
                 <button id="findBtn" onclick="findPath()">▶ ROUTE</button>
-                <button id="navBtn" onclick="startVoiceNavigation()"> NAVIGATION</button>
+                <button id="navBtn" onclick="startLiveNavigation()">NAVIGATION</button>
                 <button id="nextStepBtn" onclick="nextVoiceStep()">⏭</button>
-                <button id="voiceBtn" onclick="toggleVoice()" title="Toggle voice guidance">🔇</button>
+                <button id="voiceBtn" onclick="toggleVoice()" title="Toggle voice guidance">🔊</button>
                 <button id="clearBtn" onclick="clearAll()">✕</button>
                 <button id="themeBtn" onclick="toggleTheme()" title="Toggle dark/light mode">🌙</button>
             </div>
@@ -1003,7 +1003,7 @@
     </div>
 
     <!-- FIX #3: single overlay + single toggle button -->
-    <div id="sidebarOverlay" onclick="closeSidebar()"></div>
+    <div id="sidebarOverlay" onclickfindPath="closeSidebar()"></div>
     <button id="sidebarToggle" onclick="toggleSidebar()">🗺 DIRECTIONS</button>
 
     <script>
@@ -1016,14 +1016,23 @@
         L.control.zoom({ position: 'bottomleft' }).addTo(map);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
 
+
         let startMarker = null, endMarker = null, routeLayer = null, straightLayer = null, gpsMarker = null;
         let startCoords = null, endCoords = null, clickState = 'start';
 
-        // sound
-        let voiceEnabled = false;
+        let voiceEnabled = true; // keep voice ON by default
         let currentVoice = null;
         let navSteps = [];
         let navIndex = 0;
+
+        // LIVE NAVIGATION
+        let watchId = null;
+        let liveTracking = false;
+        let routeLatLngs = [];
+        let userTrail = [];
+        let userTrailLayer = null;
+        let lastSpokenStep = -1;
+        let hasArrived = false;
 
         // sound function
         function toggleVoice() {
@@ -1110,18 +1119,183 @@
                 return;
             }
 
-            if (!voiceEnabled) {
-                setStatus('Enable voice guidance first.', 'warn');
+            navIndex++;
+            if (navIndex >= navSteps.length) {
+                speakText('You have reached the final step.');
+                setStatus('No more navigation steps.', 'warn');
                 return;
             }
 
-            if (navIndex < navSteps.length - 1) {
-                navIndex++;
-                speakCurrentStep();
-            } else {
-                speakText('You have arrived at your destination.');
-                setStatus('Navigation completed.', 'ok');
+            highlightCurrentStep(navIndex);
+            speakCurrentStep();
+        }
+
+        function startLiveNavigation() {
+            if (!routeLatLngs.length || !navSteps.length) {
+                setStatus('Please generate a route first.', 'err');
+                return;
             }
+
+            if (!navigator.geolocation) {
+                setStatus('Geolocation is not supported by your browser.', 'err');
+                return;
+            }
+
+            stopLiveNavigation(); // clear old tracking if running
+
+            liveTracking = true;
+            navIndex = 0;
+            lastSpokenStep = -1;
+            hasArrived = false;
+            userTrail = [];
+
+            if (userTrailLayer) {
+                map.removeLayer(userTrailLayer);
+                userTrailLayer = null;
+            }
+
+            setStatus('Live navigation started...', 'ok');
+
+            speakText('Live navigation started.');
+
+            watchId = navigator.geolocation.watchPosition(
+                pos => {
+                    const lat = pos.coords.latitude;
+                    const lon = pos.coords.longitude;
+                    const accuracy = pos.coords.accuracy;
+
+                    updateLivePosition(lat, lon, accuracy);
+                },
+                err => {
+                    setStatus('Live GPS error: ' + err.message, 'err');
+                },
+                {
+                    enableHighAccuracy: true,
+                    maximumAge: 1000,
+                    timeout: 10000
+                }
+            );
+        }
+
+        function stopLiveNavigation() {
+            if (watchId !== null) {
+                navigator.geolocation.clearWatch(watchId);
+                watchId = null;
+            }
+            liveTracking = false;
+        }
+
+        function updateLivePosition(lat, lon, accuracy) {
+            if (!liveTracking) return;
+
+            // update / move GPS marker
+            if (gpsMarker) map.removeLayer(gpsMarker);
+
+            const ic = L.divIcon({
+                className: '',
+                html: `
+        <div style="position:relative;width:24px;height:24px">
+            <div style="position:absolute;inset:0;border-radius:50%;background:rgba(59,130,246,.2);border:2px solid #3b82f6;animation:gps-pulse 1.6s ease-out infinite"></div>
+            <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:10px;height:10px;border-radius:50%;background:#3b82f6;border:2px solid #fff;box-shadow:0 1px 8px rgba(59,130,246,.8)"></div>
+        </div>`,
+                iconSize: [24, 24],
+                iconAnchor: [12, 12]
+            });
+
+            gpsMarker = L.marker([lat, lon], { icon: ic })
+                .bindPopup(`<b>Your live location</b><br><small>Accuracy: ±${Math.round(accuracy)}m</small>`)
+                .addTo(map);
+
+            // keep user trail
+            userTrail.push([lat, lon]);
+            if (userTrailLayer) map.removeLayer(userTrailLayer);
+            userTrailLayer = L.polyline(userTrail, {
+                color: '#22c55e',
+                weight: 4,
+                opacity: 0.8
+            }).addTo(map);
+
+            // follow user on map
+            map.setView([lat, lon], 17);
+
+            checkNavigationProgress(lat, lon);
+        }
+
+        function checkNavigationProgress(userLat, userLon) {
+            if (!routeLatLngs.length || !navSteps.length || hasArrived) return;
+
+            const { minDist } = nearestRoutePointIndex(userLat, userLon, routeLatLngs);
+
+            // OFF ROUTE detection
+            if (minDist > 60) {
+                setStatus(`Off route by ${Math.round(minDist)}m. Please return to the route.`, 'warn');
+                speakText('You are off route. Please return to the route.');
+                return;
+            }
+
+            // ARRIVAL detection
+            const destDist = distanceToDestination(userLat, userLon);
+            if (destDist < 25) {
+                hasArrived = true;
+                stopLiveNavigation();
+                setStatus('You have arrived at your destination.', 'ok');
+                speakText('You have arrived at your destination.');
+                return;
+            }
+
+            // Speak current step if not already spoken
+            if (navIndex < navSteps.length) {
+                const step = navSteps[navIndex];
+                const spoken = cleanInstruction(step.instruction);
+
+                if (lastSpokenStep !== navIndex) {
+                    speakText(`${spoken}. Continue for ${fmtDist(step.distance * 1000)}.`);
+                    setStatus(`Step ${navIndex + 1}: ${spoken}`, 'ok');
+                    highlightCurrentStep(navIndex);
+                    lastSpokenStep = navIndex;
+                }
+
+                // Move to next step automatically if user is near end of this step
+                if (step.distance < 0.08) {
+                    navIndex++;
+                    return;
+                }
+
+                // Better approximation:
+                // if user gets close enough to destination of current step, move ahead
+                if (shouldAdvanceStep(userLat, userLon, step)) {
+                    navIndex++;
+                    if (navIndex < navSteps.length) {
+                        setTimeout(() => {
+                            const nextStep = navSteps[navIndex];
+                            const nextText = cleanInstruction(nextStep.instruction);
+                            speakText(`Next: ${nextText}`);
+                            highlightCurrentStep(navIndex);
+                            lastSpokenStep = navIndex;
+                        }, 1200);
+                    }
+                }
+            }
+        }
+
+        function shouldAdvanceStep(userLat, userLon, step) {
+            if (!step.way_points || step.way_points.length < 2) return false;
+
+            const endPointIndex = step.way_points[1];
+            if (!routeLatLngs[endPointIndex]) return false;
+
+            const [stepEndLat, stepEndLon] = routeLatLngs[endPointIndex];
+            const d = distanceMeters(userLat, userLon, stepEndLat, stepEndLon);
+
+            return d < 30; // if within 30 meters of step end, go next
+        }
+
+        function highlightCurrentStep(index) {
+            const allSteps = document.querySelectorAll('.step');
+            allSteps.forEach((el, i) => {
+                el.style.background = i === index ? 'rgba(59,130,246,.15)' : '';
+                el.style.borderLeft = i === index ? '4px solid #3b82f6' : 'none';
+            });
         }
         function cleanInstruction(text) {
             return text
@@ -1214,6 +1388,30 @@
         /* ─── HAVERSINE ─── */
         function haversine(la1, lo1, la2, lo2) { const R = 6371, dL = (la2 - la1) * Math.PI / 180, dO = (lo2 - lo1) * Math.PI / 180; const a = Math.sin(dL / 2) ** 2 + Math.cos(la1 * Math.PI / 180) * Math.cos(la2 * Math.PI / 180) * Math.sin(dO / 2) ** 2; return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)); }
 
+        function distanceMeters(lat1, lon1, lat2, lon2) {
+            return haversine(lat1, lon1, lat2, lon2) * 1000;
+        }
+
+        function nearestRoutePointIndex(userLat, userLon, route) {
+            let minDist = Infinity;
+            let nearestIndex = 0;
+
+            for (let i = 0; i < route.length; i++) {
+                const [lat, lon] = route[i];
+                const d = distanceMeters(userLat, userLon, lat, lon);
+                if (d < minDist) {
+                    minDist = d;
+                    nearestIndex = i;
+                }
+            }
+
+            return { nearestIndex, minDist };
+        }
+
+        function distanceToDestination(userLat, userLon) {
+            if (!endCoords) return Infinity;
+            return distanceMeters(userLat, userLon, endCoords[0], endCoords[1]);
+        }
         /* ─── DIJKSTRA ─── */
         function dijkstra(adj, src, dst) {
             const dist = new Map(), prev = new Map(), vis = new Set(), pq = new MinHeap();
@@ -1320,6 +1518,8 @@
             if (!startTxt || !endTxt) { setStatus('Enter both origin and destination.', 'err'); return; }
 
             document.getElementById('findBtn').disabled = true;
+            window.speechSynthesis.cancel();
+            stopLiveNavigation();
             document.getElementById('infoBar').style.display = 'none';
             if (routeLayer) { map.removeLayer(routeLayer); routeLayer = null; }
             if (straightLayer) { map.removeLayer(straightLayer); straightLayer = null; }
@@ -1361,6 +1561,7 @@
                 if (!path) throw new Error('Could not reconstruct path. Please try again.');
 
                 const latLngs = path.map(i => coords.get(i)).map(([lat, lon]) => [lat, lon]);
+                routeLatLngs = latLngs;
                 routeLayer = L.polyline(latLngs, { color: '#3b82f6', weight: 5, opacity: .9, lineJoin: 'round', lineCap: 'round' }).addTo(map);
                 map.fitBounds(routeLayer.getBounds(), { padding: [50, 50] });
 
@@ -1433,6 +1634,7 @@
 
         /* ─── CLEAR ─── */
         function clearAll() {
+            stopLiveNavigation();
             [routeLayer, straightLayer, startMarker, endMarker, gpsMarker].forEach(l => { if (l) map.removeLayer(l); });
             routeLayer = straightLayer = startMarker = endMarker = gpsMarker = null;
             startCoords = endCoords = null;
