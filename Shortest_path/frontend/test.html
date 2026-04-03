@@ -379,6 +379,25 @@
             color: var(--blue);
         }
 
+        .routeOptBtn {
+            background: var(--bg3);
+            border: 1.5px solid var(--border);
+            color: var(--text2);
+            font-size: 10px;
+            padding: 7px 10px;
+        }
+
+        .routeOptBtn:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        .routeOptBtn.active {
+            background: var(--accent);
+            color: #fff;
+            border-color: var(--accent);
+        }
+
         /* STATUS */
         #statusBar {
             height: 30px;
@@ -1037,6 +1056,11 @@
                     <option value="fastest">Fastest</option>
                 </select>
             </div>
+            <div id="routeOptions" style="display:none; gap:6px; flex-wrap:wrap; margin-top:6px;">
+                <button class="tbtn routeOptBtn" onclick="selectRoute(0)">Route 1</button>
+                <button class="tbtn routeOptBtn" onclick="selectRoute(1)">Route 2</button>
+                <button class="tbtn routeOptBtn" onclick="selectRoute(2)">Route 3</button>
+            </div>
             <div id="btn-row">
                 <button id="findBtn" class="tbtn" onclick="findPath()">▶ ROUTE</button>
                 <button id="navBtn" class="tbtn" onclick="startLiveNavigation()">🧭 NAVIGATION</button>
@@ -1051,7 +1075,7 @@
     <!-- STATUS BAR -->
     <div id="statusBar">
         <div id="spinner"></div>
-        <div id="statusTxt">Ready. Set origin and destination.</div>
+        <span id="statusTxt">Ready.</span>
     </div>
 
     <!-- LIVE NAV BANNER -->
@@ -1128,7 +1152,10 @@
         const map = L.map('map', { zoomControl: false }).setView([22.5726, 88.3639], 11);
         L.control.zoom({ position: 'bottomleft' }).addTo(map);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
-        let startMarker = null, endMarker = null, routeLayer = null, straightLayer = null, gpsMarker = null;
+        let startMarker = null, endMarker = null, straightLayer = null, gpsMarker = null;
+        let routeLayers = [];
+        let allRoutes = [];
+        let selectedRouteIndex = 0;
         let startCoords = null, endCoords = null, clickState = 'start';
         let voiceEnabled = true, navSteps = [], navIndex = 0;
         let watchId = null, liveTracking = false, routeLatLngs = [], userTrail = [], userTrailLayer = null;
@@ -1504,12 +1531,190 @@
             document.getElementById('navProgressChip').textContent = progress || '0%';
         }
         async function findPath() {
-            const startTxt = document.getElementById('startInp').value.trim(); const endTxt = document.getElementById('endInp').value.trim(); const algo = document.getElementById('algoSel').value; const mode = document.getElementById('modeSel').value; const pref = document.getElementById('prefSel').value; if (!startTxt || !endTxt) { setStatus('Enter both origin and destination.', 'err'); return; } document.getElementById('findBtn').disabled = true; window.speechSynthesis.cancel(); stopLiveNavigation(); document.getElementById('infoBar').style.display = 'none'; if (routeLayer) { map.removeLayer(routeLayer); routeLayer = null; } if (straightLayer) { map.removeLayer(straightLayer); straightLayer = null; } try {
-                setStatus('Geocoding locations…', '', true); if (!startCoords) { startCoords = await geocodeFallback(startTxt); placeMarker('start', startCoords[0], startCoords[1]); } if (!endCoords) { endCoords = await geocodeFallback(endTxt); placeMarker('end', endCoords[0], endCoords[1]); } const [sLat, sLon] = startCoords, [eLat, eLon] = endCoords; const crow = haversine(sLat, sLon, eLat, eLon); straightLayer = L.polyline([[sLat, sLon], [eLat, eLon]], { color: '#ff5c1a', weight: 2, dashArray: '6 5', opacity: .4 }).addTo(map); map.fitBounds([[sLat, sLon], [eLat, eLon]], { padding: [60, 60] }); setStatus(`Crow-flies: ${crow.toFixed(1)} km — Fetching road route…`, '', true); const orsBody = { coordinates: [[sLon, sLat], [eLon, eLat]], preference: pref, geometry: true, instructions: true, units: 'km', language: 'en' }; const orsRes = await callOrs(orsBody, mode); const orsData = await orsRes.json(); const feature = orsData.features[0]; const summary = feature.properties.summary; const segments = feature.properties.segments; const rawCoords = feature.geometry.coordinates;
-                routeGeometry = rawCoords.map(([lon, lat]) => [lat, lon]); routeSummary = summary; totalRouteDistance = summary.distance * 1000; const algoNames = { dijkstra: 'Dijkstra', astar: 'A*', bfs: 'BFS' }; setStatus(`${rawCoords.length.toLocaleString()} pts — running ${algoNames[algo]}…`, '', true); const adj = new Map(), coords = new Map(); for (let i = 0; i < rawCoords.length; i++) { const [lon, lat] = rawCoords[i]; coords.set(i, [lat, lon]); adj.set(i, []); } for (let i = 0; i < rawCoords.length - 1; i++) { const [aL, aO] = coords.get(i), [bL, bO] = coords.get(i + 1); const d = haversine(aL, aO, bL, bO); adj.get(i).push([i + 1, d]); adj.get(i + 1).push([i, d]); } const t0 = performance.now(); let result; if (algo === 'dijkstra') result = dijkstra(adj, 0, rawCoords.length - 1); else if (algo === 'astar') result = astar(adj, 0, rawCoords.length - 1, coords); else result = bfs(adj, 0, rawCoords.length - 1); const execMs = (performance.now() - t0).toFixed(2); const path = reconstructPath(result.prev, 0, rawCoords.length - 1); if (!path) throw new Error('Could not reconstruct path.'); const latLngs = path.map(i => coords.get(i)).map(([lat, lon]) => [lat, lon]); routeLatLngs = latLngs; routeLayer = L.polyline(latLngs, { color: '#3b82f6', weight: 5, opacity: .9, lineJoin: 'round', lineCap: 'round' }).addTo(map); map.fitBounds(routeLayer.getBounds(), { padding: [50, 50] }); document.getElementById('i-algo').textContent = algoNames[algo]; document.getElementById('i-dist').textContent = `${summary.distance.toFixed(2)} km`; document.getElementById('i-dur').textContent = fmtDur(summary.duration); document.getElementById('i-seg').textContent = rawCoords.length.toLocaleString(); document.getElementById('i-nodes').textContent = result.visited.toLocaleString(); document.getElementById('i-exec').textContent = `${execMs}ms`; document.getElementById('infoBar').style.display = 'block'; const stepList = document.getElementById('stepList'); stepList.innerHTML = ''; navSteps = []; navIndex = 0; stepVoiceStage = {}; let stepNum = 0; for (const seg of segments) { for (const step of seg.steps) { navSteps.push(step); stepNum++; const div = document.createElement('div'); div.className = 'step'; div.innerHTML = `<div class="step-num">${String(stepNum).padStart(2, '0')}</div><div class="step-icon">${ICONS[step.type] || '↑'}</div><div class="step-body"><div class="step-instr">${step.instruction}</div><div class="step-meta">${fmtDist(step.distance * 1000)} · ${fmtDur(step.duration)} · ${step.name !== '-' ? step.name : 'Unnamed road'}</div></div>`; const wp = step.way_points; div.addEventListener('click', () => { if (wp && wp.length >= 2) { const c1 = coords.get(wp[0]), c2 = coords.get(wp[1] || wp[0]); if (c1 && c2) map.fitBounds([[c1[0], c1[1]], [c2[0], c2[1]]], { padding: [60, 60], maxZoom: 17 }); } speakText(`${cleanInstruction(step.instruction)}. Continue for ${fmtDist(step.distance * 1000)}.`); }); stepList.appendChild(div); } } document.getElementById('stepBadge').textContent = `${stepNum} STEPS`; const n = rawCoords.length; const descs = { dijkstra: `<b>DIJKSTRA'S ALGORITHM</b><br>Expands minimum-cost frontier via <span class="tag">Min-Heap PQ</span>. Guarantees globally optimal path. Explored <b>${result.visited.toLocaleString()}</b>/${n.toLocaleString()} nodes. <span class="tag">O((V+E) log V)</span>`, astar: `<b>A* SEARCH ALGORITHM</b><br>Combines Dijkstra's cost with a <span class="tag">Haversine heuristic</span> to guide toward destination. Usually explores fewer nodes. Explored <b>${result.visited.toLocaleString()}</b>/${n.toLocaleString()} nodes.`, bfs: `<b>BFS — BREADTH-FIRST SEARCH</b><br>Finds path with fewest <span class="tag">segments</span>, not minimum distance. Explored <b>${result.visited.toLocaleString()}</b>/${n.toLocaleString()} nodes. <span class="tag">O(V+E)</span>` }; document.getElementById('algoBox').innerHTML = descs[algo]; setStatus(`✓ ${summary.distance.toFixed(2)} km · ${fmtDur(summary.duration)} · ${algoNames[algo]} · ${execMs}ms`, 'ok'); if (voiceEnabled) speakText(`Route ready. ${summary.distance.toFixed(1)} kilometers. ${fmtDur(summary.duration)}.`); if (window.innerWidth <= 1000) autoOpenSidebar();
+            const startTxt = document.getElementById('startInp').value.trim(); const endTxt = document.getElementById('endInp').value.trim(); const algo = document.getElementById('algoSel').value; const mode = document.getElementById('modeSel').value; const pref = document.getElementById('prefSel').value; if (!startTxt || !endTxt) { setStatus('Enter both origin and destination.', 'err'); return; } document.getElementById('findBtn').disabled = true; window.speechSynthesis.cancel(); stopLiveNavigation(); document.getElementById('infoBar').style.display = 'none'; routeLayers.forEach(l => map.removeLayer(l));
+            routeLayers = [];
+            allRoutes = [];
+            selectedRouteIndex = 0; if (straightLayer) { map.removeLayer(straightLayer); straightLayer = null; } try {
+                setStatus('Geocoding locations…', '', true); if (!startCoords) { startCoords = await geocodeFallback(startTxt); placeMarker('start', startCoords[0], startCoords[1]); } if (!endCoords) { endCoords = await geocodeFallback(endTxt); placeMarker('end', endCoords[0], endCoords[1]); } const [sLat, sLon] = startCoords, [eLat, eLon] = endCoords; const crow = haversine(sLat, sLon, eLat, eLon); straightLayer = L.polyline([[sLat, sLon], [eLat, eLon]], { color: '#ff5c1a', weight: 2, dashArray: '6 5', opacity: .4 }).addTo(map); map.fitBounds([[sLat, sLon], [eLat, eLon]], { padding: [60, 60] }); setStatus(`Crow-flies: ${crow.toFixed(1)} km — Fetching road route…`, '', true);
+                const orsBody = {
+                    coordinates: [[sLon, sLat], [eLon, eLat]],
+                    preference: pref,
+                    geometry: true,
+                    instructions: true,
+                    units: 'km',
+                    language: 'en',
+                    alternative_routes: {
+                        target_count: 2,
+                        share_factor: 0.6,
+                        weight_factor: 1.4
+                    }
+                };
+                const orsRes = await callOrs(orsBody, mode); const orsData = await orsRes.json();
+                const features = orsData.features;
+                if (!features || !features.length) throw new Error('No route found.');
+
+                allRoutes = features.map((feature, idx) => {
+                    const summary = feature.properties.summary;
+                    const segments = feature.properties.segments;
+                    const rawCoords = feature.geometry.coordinates;
+                    const latLngs = rawCoords.map(([lon, lat]) => [lat, lon]);
+
+                    return {
+                        summary,
+                        segments,
+                        rawCoords,
+                        latLngs,
+                        feature,
+                        idx
+                    };
+                });
+
+                const primaryRoute = allRoutes[0];
+                const summary = primaryRoute.summary;
+                const rawCoords = primaryRoute.rawCoords;
+
+                routeSummary = summary;
+                totalRouteDistance = summary.distance * 1000;
+
+                const algoNames = { dijkstra: 'Dijkstra', astar: 'A*', bfs: 'BFS' };
+
+                setStatus(`${rawCoords.length.toLocaleString()} pts — running ${algoNames[algo]}…`, '', true);
+
+                const adj = new Map(), coords = new Map();
+                for (let i = 0; i < rawCoords.length; i++) {
+                    const [lon, lat] = rawCoords[i];
+                    coords.set(i, [lat, lon]);
+                    adj.set(i, []);
+                }
+                for (let i = 0; i < rawCoords.length - 1; i++) { const [aL, aO] = coords.get(i), [bL, bO] = coords.get(i + 1); const d = haversine(aL, aO, bL, bO); adj.get(i).push([i + 1, d]); adj.get(i + 1).push([i, d]); } const t0 = performance.now(); let result; if (algo === 'dijkstra') result = dijkstra(adj, 0, rawCoords.length - 1); else if (algo === 'astar') result = astar(adj, 0, rawCoords.length - 1, coords); else result = bfs(adj, 0, rawCoords.length - 1); const execMs = (performance.now() - t0).toFixed(2); const path = reconstructPath(result.prev, 0, rawCoords.length - 1); if (!path) throw new Error('Could not reconstruct path.');
+
+                routeLayers.forEach(l => map.removeLayer(l));
+                routeLayers = [];
+
+                allRoutes.forEach((r, i) => {
+                    const layer = L.polyline(r.latLngs, {
+                        color: i === 0 ? '#3b82f6' : (i === 1 ? '#22c55e' : '#f59e0b'),
+                        weight: i === 0 ? 6 : 4,
+                        opacity: i === 0 ? 0.95 : 0.55,
+                        lineJoin: 'round',
+                        lineCap: 'round',
+                        dashArray: i === 0 ? null : '8 8'
+                    }).addTo(map);
+
+                    layer.on('click', () => selectRoute(i));
+                    routeLayers.push(layer);
+                });
+
+                routeLatLngs = allRoutes[0].latLngs;
+                map.fitBounds(routeLayers[0].getBounds(), { padding: [50, 50] });
+
+                document.getElementById('routeOptions').style.display = 'flex';
+                updateRouteButtons();
+                document.getElementById('i-algo').textContent = algoNames[algo];
+                document.getElementById('i-dist').textContent = `${summary.distance.toFixed(2)} km`;
+                document.getElementById('i-dur').textContent = fmtDur(summary.duration); document.getElementById('i-seg').textContent = rawCoords.length.toLocaleString();
+
+                document.getElementById('i-seg').textContent = rawCoords.length.toLocaleString();
+
+
+                document.getElementById('i-nodes').textContent = result.visited.toLocaleString();
+                document.getElementById('i-exec').textContent = `${execMs}ms`;
+                document.getElementById('infoBar').style.display = 'block';
+
+                buildRouteInstructions(allRoutes[0]);
+                const n = rawCoords.length; const descs = { dijkstra: `<b>DIJKSTRA'S ALGORITHM</b><br>Expands minimum-cost frontier via <span class="tag">Min-Heap PQ</span>. Guarantees globally optimal path. Explored <b>${result.visited.toLocaleString()}</b>/${n.toLocaleString()} nodes. <span class="tag">O((V+E) log V)</span>`, astar: `<b>A* SEARCH ALGORITHM</b><br>Combines Dijkstra's cost with a <span class="tag">Haversine heuristic</span> to guide toward destination. Usually explores fewer nodes. Explored <b>${result.visited.toLocaleString()}</b>/${n.toLocaleString()} nodes.`, bfs: `<b>BFS — BREADTH-FIRST SEARCH</b><br>Finds path with fewest <span class="tag">segments</span>, not minimum distance. Explored <b>${result.visited.toLocaleString()}</b>/${n.toLocaleString()} nodes. <span class="tag">O(V+E)</span>` }; document.getElementById('algoBox').innerHTML = descs[algo]; setStatus(`✓ ${summary.distance.toFixed(2)} km · ${fmtDur(summary.duration)} · ${algoNames[algo]} · ${execMs}ms`, 'ok'); if (voiceEnabled) speakText(`Route ready. ${summary.distance.toFixed(1)} kilometers. ${fmtDur(summary.duration)}.`); if (window.innerWidth <= 1000) autoOpenSidebar();
             } catch (err) { setStatus(`✕ ${err.message}`, 'err'); console.error(err); } document.getElementById('findBtn').disabled = false;
         }
-        function clearAll() { stopLiveNavigation();[routeLayer, straightLayer, startMarker, endMarker, gpsMarker, userTrailLayer].forEach(l => { if (l) map.removeLayer(l); }); routeLayer = straightLayer = startMarker = endMarker = gpsMarker = userTrailLayer = null; startCoords = endCoords = null; navSteps = []; navIndex = 0; stepVoiceStage = {}; routeLatLngs = []; window.speechSynthesis.cancel(); document.getElementById('startInp').value = ''; document.getElementById('endInp').value = ''; document.getElementById('infoBar').style.display = 'none'; document.getElementById('stepBadge').textContent = '0 STEPS'; document.getElementById('stepList').innerHTML = '<div class="empty-state"><div class="icon">🗺</div><p>Set origin &amp; destination,<br>then hit <b>▶ ROUTE</b><br>to compute the optimal path.</p></div>'; document.getElementById('algoBox').innerHTML = '<b>DIJKSTRA\'S ALGORITHM</b><br>Explores nodes by always expanding the lowest-cost frontier via a <span class="tag">Min-Heap PQ</span>. Guarantees globally optimal path. <span class="tag">O((V+E) log V)</span>'; clickState = 'start'; setStatus('Cleared. Enter new locations or click the map.'); }
+        function updateRouteButtons() {
+            document.querySelectorAll('.routeOptBtn').forEach((btn, i) => {
+                btn.classList.toggle('active', i === selectedRouteIndex);
+            });
+        }
+
+        function selectRoute(index) {
+            if (!allRoutes[index]) return;
+            selectedRouteIndex = index;
+
+            routeLayers.forEach((layer, i) => {
+                layer.setStyle({
+                    weight: i === index ? 6 : 4,
+                    opacity: i === index ? 0.95 : 0.45,
+                    dashArray: i === index ? null : '8 8'
+                });
+            });
+
+            const route = allRoutes[index];
+            routeLatLngs = route.latLngs;
+            routeSummary = route.summary;
+
+            buildRouteInstructions(route);
+            map.fitBounds(routeLayers[index].getBounds(), { padding: [50, 50] });
+            updateRouteButtons();
+
+            setStatus(`Selected Route ${index + 1}: ${route.summary.distance.toFixed(2)} km · ${fmtDur(route.summary.duration)}`, 'ok');
+        }
+        function buildRouteInstructions(route) {
+            const stepList = document.getElementById('stepList');
+            stepList.innerHTML = '';
+            navSteps = [];
+            navIndex = 0;
+            stepVoiceStage = {};
+
+            let stepNum = 0;
+
+            for (const seg of route.segments) {
+                for (const step of seg.steps) {
+                    navSteps.push(step);
+                    stepNum++;
+
+                    const div = document.createElement('div');
+                    div.className = 'step';
+                    div.innerHTML = `
+                <div class="step-num">${String(stepNum).padStart(2, '0')}</div>
+                <div class="step-icon">${ICONS[step.type] || '↑'}</div>
+                <div class="step-body">
+                    <div class="step-instr">${step.instruction}</div>
+                    <div class="step-meta">
+                        ${fmtDist(step.distance * 1000)} · ${fmtDur(step.duration)} · ${step.name !== '-' ? step.name : 'Unnamed road'}
+                    </div>
+                </div>
+            `;
+
+                    const wp = step.way_points;
+                    div.addEventListener('click', () => {
+                        if (wp && wp.length >= 2) {
+                            const c1 = route.latLngs[wp[0]];
+                            const c2 = route.latLngs[wp[1] || wp[0]];
+                            if (c1 && c2) {
+                                map.fitBounds([c1, c2], { padding: [60, 60], maxZoom: 17 });
+                            }
+                        }
+
+                        speakText(`${cleanInstruction(step.instruction)}. Continue for ${fmtDist(step.distance * 1000)}.`);
+                    });
+
+                    stepList.appendChild(div);
+                }
+            }
+
+            document.getElementById('stepBadge').textContent = `${stepNum} STEPS`;
+
+            document.getElementById('i-dist').textContent = `${route.summary.distance.toFixed(2)} km`;
+            document.getElementById('i-dur').textContent = fmtDur(route.summary.duration);
+        }
+        function clearAll() {
+            stopLiveNavigation();[straightLayer, startMarker, endMarker, gpsMarker, userTrailLayer].forEach(l => {
+                if (l) map.removeLayer(l);
+            });
+
+            routeLayers.forEach(l => map.removeLayer(l));
+
+            straightLayer = startMarker = endMarker = gpsMarker = userTrailLayer = null;
+            routeLayers = []; startCoords = endCoords = null; navSteps = []; navIndex = 0; stepVoiceStage = {}; routeLayers = [];
+            allRoutes = [];
+            selectedRouteIndex = 0;
+            document.getElementById('routeOptions').style.display = 'none'; window.speechSynthesis.cancel(); document.getElementById('startInp').value = ''; document.getElementById('endInp').value = ''; document.getElementById('infoBar').style.display = 'none'; document.getElementById('stepBadge').textContent = '0 STEPS'; document.getElementById('stepList').innerHTML = '<div class="empty-state"><div class="icon">🗺</div><p>Set origin &amp; destination,<br>then hit <b>▶ ROUTE</b><br>to compute the optimal path.</p></div>'; document.getElementById('algoBox').innerHTML = '<b>DIJKSTRA\'S ALGORITHM</b><br>Explores nodes by always expanding the lowest-cost frontier via a <span class="tag">Min-Heap PQ</span>. Guarantees globally optimal path. <span class="tag">O((V+E) log V)</span>'; clickState = 'start'; setStatus('Cleared. Enter new locations or click the map.');
+        }
         function setStatus(msg, cls = '', loading = false) { const bar = document.getElementById('statusBar'); bar.className = ''; if (cls) bar.classList.add(cls); document.getElementById('statusTxt').textContent = msg; document.getElementById('spinner').style.display = loading ? 'block' : 'none'; }
         function toggleSidebar() { const sb = document.getElementById('sidebar'), ov = document.getElementById('sidebarOverlay'), btn = document.getElementById('sidebarToggle'); const isOpen = sb.classList.toggle('open'); ov.classList.toggle('visible', isOpen); btn.textContent = isOpen ? '✕ CLOSE' : '🗺 DIRECTIONS'; setTimeout(() => map.invalidateSize(), 310); }
         function closeSidebar() { document.getElementById('sidebar').classList.remove('open'); document.getElementById('sidebarOverlay').classList.remove('visible'); document.getElementById('sidebarToggle').textContent = '🗺 DIRECTIONS'; setTimeout(() => map.invalidateSize(), 310); }
