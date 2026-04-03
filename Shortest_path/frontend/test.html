@@ -1066,6 +1066,7 @@
         <div class="nav-meta">
             <div class="nav-chip" id="navDistChip">—</div>
             <div class="nav-chip" id="navEtaChip">—</div>
+            <div class="nav-chip" id="navProgressChip">0%</div>
         </div>
     </div>
 
@@ -1141,6 +1142,10 @@
         let currentHeading = 0;
         let mapRotation = 0;
 
+        let snappedUserCoords = null;
+        let totalRouteDistance = 0;
+        let smoothedHeading = 0;
+
         map.on('click', e => { const { lat, lng } = e.latlng; if (clickState === 'start') { setStart([lat, lng], `${lat.toFixed(5)}, ${lng.toFixed(5)}`); clickState = 'end'; setStatus('Origin set. Click map to place destination.'); } else { setEnd([lat, lng], `${lat.toFixed(5)}, ${lng.toFixed(5)}`); clickState = 'start'; setStatus('Destination set — press ▶ ROUTE.'); } });
         function setStart(c, l) { startCoords = c; document.getElementById('startInp').value = l; placeMarker('start', c[0], c[1]); }
         function setEnd(c, l) { endCoords = c; document.getElementById('endInp').value = l; placeMarker('end', c[0], c[1]); }
@@ -1211,8 +1216,9 @@
                     cleanInstruction(first.instruction),
                     first.name !== '-' ? first.name : 'Continue on route',
                     ICONS[first.type] || '↑',
-                    fmtDist(first.distance * 1000),
-                    routeSummary ? fmtDur(routeSummary.duration) : '—'
+                    routeSummary ? fmtDist(routeSummary.distance * 1000) : '—',
+                    routeSummary ? fmtDur(routeSummary.duration) : '—',
+                    '0%'
                 );
             }
             watchId = navigator.geolocation.watchPosition(pos => updateLivePosition(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy), err => setStatus('GPS error: ' + err.message, 'err'), { enableHighAccuracy: true, maximumAge: 1000, timeout: 10000 });
@@ -1232,37 +1238,44 @@
         function updateLivePosition(lat, lon, accuracy) {
             if (!liveTracking) return;
 
-            // Calculate heading from previous position
+            // Calculate movement heading
             if (lastLivePosition) {
                 const [prevLat, prevLon] = lastLivePosition;
                 const moveDist = distanceMeters(prevLat, prevLon, lat, lon);
 
-                if (moveDist > 3) { // avoid shaky heading when standing still
-                    currentHeading = calculateHeading(prevLat, prevLon, lat, lon);
+                if (moveDist > 3) {
+                    const rawHeading = calculateHeading(prevLat, prevLon, lat, lon);
+                    currentHeading = smoothHeading(rawHeading);
                 }
             }
 
             lastLivePosition = [lat, lon];
 
+            // Snap user to nearest route point
+            const [snapLat, snapLon] = snapToRoute(lat, lon);
+            snappedUserCoords = [snapLat, snapLon];
+
             if (gpsMarker) map.removeLayer(gpsMarker);
-            gpsMarker = L.marker([lat, lon], {
+
+            gpsMarker = L.marker([snapLat, snapLon], {
                 icon: gpsArrowIcon(currentHeading)
             }).bindPopup(`<b>Live location</b><br><small>±${Math.round(accuracy)}m</small>`).addTo(map);
 
-            userTrail.push([lat, lon]);
-            if (userTrailLayer) map.removeLayer(userTrailLayer);
+            // Draw smooth trail using snapped route points
+            userTrail.push([snapLat, snapLon]);
 
+            if (userTrailLayer) map.removeLayer(userTrailLayer);
             userTrailLayer = L.polyline(userTrail, {
                 color: '#22c55e',
                 weight: 4,
-                opacity: .8
+                opacity: .85
             }).addTo(map);
 
-            map.setView([lat, lon], 17);
+            map.setView([snapLat, snapLon], 17);
 
-            // Rotate map based on movement direction
             rotateMapToHeading(currentHeading);
 
+            // IMPORTANT: navigation logic should still use real GPS
             checkNavigationProgress(lat, lon);
         }
         function distanceToStepEnd(uLat, uLon, step) { if (!step.way_points || step.way_points.length < 2) return Infinity; const ep = step.way_points[1]; if (!routeLatLngs[ep]) return Infinity; const [sLat, sLon] = routeLatLngs[ep]; return distanceMeters(uLat, uLon, sLat, sLon); }
@@ -1271,6 +1284,13 @@
 
             const step = navSteps[navIndex];
             const key = `step_${navIndex}`;
+            const remainingRoute = getRemainingRouteDistance(uLat, uLon);
+            const progressPercent = totalRouteDistance > 0
+                ? Math.min(100, Math.max(0, ((totalRouteDistance - remainingRoute) / totalRouteDistance) * 100))
+                : 0;
+
+            const avgSpeedMps = routeSummary ? (routeSummary.distance * 1000) / routeSummary.duration : 0;
+            const remainingEtaSec = avgSpeedMps > 0 ? remainingRoute / avgSpeedMps : 0;
 
             if (!stepVoiceStage[key]) {
                 stepVoiceStage[key] = {
@@ -1292,8 +1312,9 @@
                 spoken,
                 step.name !== '-' ? step.name : 'Continue on route',
                 ICONS[step.type] || '↑',
-                fmtDist(dist),
-                remainingEta
+                fmtDist(remainingRoute),
+                fmtDur(remainingEtaSec),
+                `${Math.round(progressPercent)}%`
             );
 
             setStatus(`Next: ${spoken} in ${fmtDist(dist)}`, 'ok');
@@ -1350,7 +1371,8 @@
                     'Destination reached successfully',
                     '🏁',
                     '0 m',
-                    '0 min'
+                    '0 min',
+                    '100%'
                 );
 
                 setStatus('You have arrived!', 'ok');
@@ -1374,12 +1396,21 @@
                     if (navIndex < navSteps.length) {
                         const nx = navSteps[navIndex];
 
+                        const remainingRoute = getRemainingRouteDistance(uLat, uLon);
+                        const progressPercent = totalRouteDistance > 0
+                            ? Math.min(100, Math.max(0, ((totalRouteDistance - remainingRoute) / totalRouteDistance) * 100))
+                            : 0;
+
+                        const avgSpeedMps = routeSummary ? (routeSummary.distance * 1000) / routeSummary.duration : 0;
+                        const remainingEtaSec = avgSpeedMps > 0 ? remainingRoute / avgSpeedMps : 0;
+
                         updateNavBanner(
                             cleanInstruction(nx.instruction),
                             nx.name !== '-' ? nx.name : 'Continue on route',
                             ICONS[nx.type] || '↑',
-                            fmtDist(nx.distance * 1000),
-                            routeSummary ? fmtDur(routeSummary.duration) : '—'
+                            fmtDist(remainingRoute),
+                            fmtDur(remainingEtaSec),
+                            `${Math.round(progressPercent)}%`
                         );
 
                         setTimeout(() => {
@@ -1408,14 +1439,41 @@
             let brng = toDeg(Math.atan2(y, x));
             return (brng + 360) % 360;
         }
+        function smoothHeading(newHeading) {
+            const diff = ((((newHeading - smoothedHeading) % 360) + 540) % 360) - 180;
+            smoothedHeading = (smoothedHeading + diff * 0.22 + 360) % 360;
+            return smoothedHeading;
+        }
         function rotateMapToHeading(heading) {
             const mapEl = document.getElementById('map');
             mapRotation = -heading;
             mapEl.style.transform = `rotate(${mapRotation}deg)`;
         }
         function nearestRoutePointIndex(uLat, uLon, route) { let minDist = Infinity, nearestIndex = 0; for (let i = 0; i < route.length; i++) { const [lat, lon] = route[i]; const d = distanceMeters(uLat, uLon, lat, lon); if (d < minDist) { minDist = d; nearestIndex = i; } } return { nearestIndex, minDist }; }
+        function snapToRoute(uLat, uLon) {
+            if (!routeLatLngs.length) return [uLat, uLon];
+
+            const { nearestIndex } = nearestRoutePointIndex(uLat, uLon, routeLatLngs);
+            return routeLatLngs[nearestIndex] || [uLat, uLon];
+        }
         function distanceToDestination(uLat, uLon) { if (!endCoords) return Infinity; return distanceMeters(uLat, uLon, endCoords[0], endCoords[1]); }
+        function getRemainingRouteDistance(uLat, uLon) {
+            if (!routeLatLngs.length) return 0;
+
+            const { nearestIndex } = nearestRoutePointIndex(uLat, uLon, routeLatLngs);
+
+            let remaining = 0;
+
+            for (let i = nearestIndex; i < routeLatLngs.length - 1; i++) {
+                const [lat1, lon1] = routeLatLngs[i];
+                const [lat2, lon2] = routeLatLngs[i + 1];
+                remaining += distanceMeters(lat1, lon1, lat2, lon2);
+            }
+
+            return remaining;
+        }
         class MinHeap { constructor() { this.h = []; } push(p, v) { this.h.push([p, v]); this._up(this.h.length - 1); } pop() { const t = this.h[0], l = this.h.pop(); if (this.h.length) { this.h[0] = l; this._down(0); } return t; } get size() { return this.h.length; } _up(i) { while (i > 0) { const p = (i - 1) >> 1; if (this.h[p][0] > this.h[i][0]) { [this.h[p], this.h[i]] = [this.h[i], this.h[p]]; i = p; } else break; } } _down(i) { const n = this.h.length; while (true) { let s = i, l = 2 * i + 1, r = 2 * i + 2; if (l < n && this.h[l][0] < this.h[s][0]) s = l; if (r < n && this.h[r][0] < this.h[s][0]) s = r; if (s !== i) { [this.h[s], this.h[i]] = [this.h[i], this.h[s]]; i = s; } else break; } } }
+
         function dijkstra(adj, src, dst) { const dist = new Map(), prev = new Map(), vis = new Set(), pq = new MinHeap(); dist.set(src, 0); pq.push(0, src); while (pq.size) { const [d, u] = pq.pop(); if (vis.has(u)) continue; vis.add(u); if (u === dst) break; for (const [v, w] of (adj.get(u) || [])) { const nd = d + w; if (!dist.has(v) || nd < dist.get(v)) { dist.set(v, nd); prev.set(v, u); pq.push(nd, v); } } } return { prev, visited: vis.size }; }
         function astar(adj, src, dst, coords) { const g = new Map(), prev = new Map(), vis = new Set(), pq = new MinHeap(); const h = id => { const a = coords.get(id), b = coords.get(dst); return a && b ? haversine(a[0], a[1], b[0], b[1]) : 0; }; g.set(src, 0); pq.push(h(src), src); while (pq.size) { const [, u] = pq.pop(); if (vis.has(u)) continue; vis.add(u); if (u === dst) break; for (const [v, w] of (adj.get(u) || [])) { const ng = (g.get(u) || 0) + w; if (!g.has(v) || ng < g.get(v)) { g.set(v, ng); prev.set(v, u); pq.push(ng + h(v), v); } } } return { prev, visited: vis.size }; }
         function bfs(adj, src, dst) { const prev = new Map(), vis = new Set([src]), q = [src]; let head = 0; while (head < q.length) { const u = q[head++]; if (u === dst) break; for (const [v] of (adj.get(u) || [])) { if (!vis.has(v)) { vis.add(v); prev.set(v, u); q.push(v); } } } return { prev, visited: vis.size }; }
@@ -1437,17 +1495,18 @@
             document.getElementById('navBanner').classList.remove('active');
         }
 
-        function updateNavBanner(primary, secondary = '', icon = '↑', dist = '—', eta = '—') {
+        function updateNavBanner(primary, secondary = '', icon = '↑', dist = '—', eta = '—', progress = '0%') {
             document.getElementById('navPrimary').textContent = primary || 'Continue';
             document.getElementById('navSecondary').textContent = secondary || '';
             document.getElementById('navIcon').textContent = icon || '↑';
             document.getElementById('navDistChip').textContent = dist || '—';
             document.getElementById('navEtaChip').textContent = eta || '—';
+            document.getElementById('navProgressChip').textContent = progress || '0%';
         }
         async function findPath() {
             const startTxt = document.getElementById('startInp').value.trim(); const endTxt = document.getElementById('endInp').value.trim(); const algo = document.getElementById('algoSel').value; const mode = document.getElementById('modeSel').value; const pref = document.getElementById('prefSel').value; if (!startTxt || !endTxt) { setStatus('Enter both origin and destination.', 'err'); return; } document.getElementById('findBtn').disabled = true; window.speechSynthesis.cancel(); stopLiveNavigation(); document.getElementById('infoBar').style.display = 'none'; if (routeLayer) { map.removeLayer(routeLayer); routeLayer = null; } if (straightLayer) { map.removeLayer(straightLayer); straightLayer = null; } try {
                 setStatus('Geocoding locations…', '', true); if (!startCoords) { startCoords = await geocodeFallback(startTxt); placeMarker('start', startCoords[0], startCoords[1]); } if (!endCoords) { endCoords = await geocodeFallback(endTxt); placeMarker('end', endCoords[0], endCoords[1]); } const [sLat, sLon] = startCoords, [eLat, eLon] = endCoords; const crow = haversine(sLat, sLon, eLat, eLon); straightLayer = L.polyline([[sLat, sLon], [eLat, eLon]], { color: '#ff5c1a', weight: 2, dashArray: '6 5', opacity: .4 }).addTo(map); map.fitBounds([[sLat, sLon], [eLat, eLon]], { padding: [60, 60] }); setStatus(`Crow-flies: ${crow.toFixed(1)} km — Fetching road route…`, '', true); const orsBody = { coordinates: [[sLon, sLat], [eLon, eLat]], preference: pref, geometry: true, instructions: true, units: 'km', language: 'en' }; const orsRes = await callOrs(orsBody, mode); const orsData = await orsRes.json(); const feature = orsData.features[0]; const summary = feature.properties.summary; const segments = feature.properties.segments; const rawCoords = feature.geometry.coordinates;
-                routeGeometry = rawCoords.map(([lon, lat]) => [lat, lon]); routeSummary = summary; const algoNames = { dijkstra: 'Dijkstra', astar: 'A*', bfs: 'BFS' }; setStatus(`${rawCoords.length.toLocaleString()} pts — running ${algoNames[algo]}…`, '', true); const adj = new Map(), coords = new Map(); for (let i = 0; i < rawCoords.length; i++) { const [lon, lat] = rawCoords[i]; coords.set(i, [lat, lon]); adj.set(i, []); } for (let i = 0; i < rawCoords.length - 1; i++) { const [aL, aO] = coords.get(i), [bL, bO] = coords.get(i + 1); const d = haversine(aL, aO, bL, bO); adj.get(i).push([i + 1, d]); adj.get(i + 1).push([i, d]); } const t0 = performance.now(); let result; if (algo === 'dijkstra') result = dijkstra(adj, 0, rawCoords.length - 1); else if (algo === 'astar') result = astar(adj, 0, rawCoords.length - 1, coords); else result = bfs(adj, 0, rawCoords.length - 1); const execMs = (performance.now() - t0).toFixed(2); const path = reconstructPath(result.prev, 0, rawCoords.length - 1); if (!path) throw new Error('Could not reconstruct path.'); const latLngs = path.map(i => coords.get(i)).map(([lat, lon]) => [lat, lon]); routeLatLngs = latLngs; routeLayer = L.polyline(latLngs, { color: '#3b82f6', weight: 5, opacity: .9, lineJoin: 'round', lineCap: 'round' }).addTo(map); map.fitBounds(routeLayer.getBounds(), { padding: [50, 50] }); document.getElementById('i-algo').textContent = algoNames[algo]; document.getElementById('i-dist').textContent = `${summary.distance.toFixed(2)} km`; document.getElementById('i-dur').textContent = fmtDur(summary.duration); document.getElementById('i-seg').textContent = rawCoords.length.toLocaleString(); document.getElementById('i-nodes').textContent = result.visited.toLocaleString(); document.getElementById('i-exec').textContent = `${execMs}ms`; document.getElementById('infoBar').style.display = 'block'; const stepList = document.getElementById('stepList'); stepList.innerHTML = ''; navSteps = []; navIndex = 0; stepVoiceStage = {}; let stepNum = 0; for (const seg of segments) { for (const step of seg.steps) { navSteps.push(step); stepNum++; const div = document.createElement('div'); div.className = 'step'; div.innerHTML = `<div class="step-num">${String(stepNum).padStart(2, '0')}</div><div class="step-icon">${ICONS[step.type] || '↑'}</div><div class="step-body"><div class="step-instr">${step.instruction}</div><div class="step-meta">${fmtDist(step.distance * 1000)} · ${fmtDur(step.duration)} · ${step.name !== '-' ? step.name : 'Unnamed road'}</div></div>`; const wp = step.way_points; div.addEventListener('click', () => { if (wp && wp.length >= 2) { const c1 = coords.get(wp[0]), c2 = coords.get(wp[1] || wp[0]); if (c1 && c2) map.fitBounds([[c1[0], c1[1]], [c2[0], c2[1]]], { padding: [60, 60], maxZoom: 17 }); } speakText(`${cleanInstruction(step.instruction)}. Continue for ${fmtDist(step.distance * 1000)}.`); }); stepList.appendChild(div); } } document.getElementById('stepBadge').textContent = `${stepNum} STEPS`; const n = rawCoords.length; const descs = { dijkstra: `<b>DIJKSTRA'S ALGORITHM</b><br>Expands minimum-cost frontier via <span class="tag">Min-Heap PQ</span>. Guarantees globally optimal path. Explored <b>${result.visited.toLocaleString()}</b>/${n.toLocaleString()} nodes. <span class="tag">O((V+E) log V)</span>`, astar: `<b>A* SEARCH ALGORITHM</b><br>Combines Dijkstra's cost with a <span class="tag">Haversine heuristic</span> to guide toward destination. Usually explores fewer nodes. Explored <b>${result.visited.toLocaleString()}</b>/${n.toLocaleString()} nodes.`, bfs: `<b>BFS — BREADTH-FIRST SEARCH</b><br>Finds path with fewest <span class="tag">segments</span>, not minimum distance. Explored <b>${result.visited.toLocaleString()}</b>/${n.toLocaleString()} nodes. <span class="tag">O(V+E)</span>` }; document.getElementById('algoBox').innerHTML = descs[algo]; setStatus(`✓ ${summary.distance.toFixed(2)} km · ${fmtDur(summary.duration)} · ${algoNames[algo]} · ${execMs}ms`, 'ok'); if (voiceEnabled) speakText(`Route ready. ${summary.distance.toFixed(1)} kilometers. ${fmtDur(summary.duration)}.`); if (window.innerWidth <= 1000) autoOpenSidebar();
+                routeGeometry = rawCoords.map(([lon, lat]) => [lat, lon]); routeSummary = summary; totalRouteDistance = summary.distance * 1000; const algoNames = { dijkstra: 'Dijkstra', astar: 'A*', bfs: 'BFS' }; setStatus(`${rawCoords.length.toLocaleString()} pts — running ${algoNames[algo]}…`, '', true); const adj = new Map(), coords = new Map(); for (let i = 0; i < rawCoords.length; i++) { const [lon, lat] = rawCoords[i]; coords.set(i, [lat, lon]); adj.set(i, []); } for (let i = 0; i < rawCoords.length - 1; i++) { const [aL, aO] = coords.get(i), [bL, bO] = coords.get(i + 1); const d = haversine(aL, aO, bL, bO); adj.get(i).push([i + 1, d]); adj.get(i + 1).push([i, d]); } const t0 = performance.now(); let result; if (algo === 'dijkstra') result = dijkstra(adj, 0, rawCoords.length - 1); else if (algo === 'astar') result = astar(adj, 0, rawCoords.length - 1, coords); else result = bfs(adj, 0, rawCoords.length - 1); const execMs = (performance.now() - t0).toFixed(2); const path = reconstructPath(result.prev, 0, rawCoords.length - 1); if (!path) throw new Error('Could not reconstruct path.'); const latLngs = path.map(i => coords.get(i)).map(([lat, lon]) => [lat, lon]); routeLatLngs = latLngs; routeLayer = L.polyline(latLngs, { color: '#3b82f6', weight: 5, opacity: .9, lineJoin: 'round', lineCap: 'round' }).addTo(map); map.fitBounds(routeLayer.getBounds(), { padding: [50, 50] }); document.getElementById('i-algo').textContent = algoNames[algo]; document.getElementById('i-dist').textContent = `${summary.distance.toFixed(2)} km`; document.getElementById('i-dur').textContent = fmtDur(summary.duration); document.getElementById('i-seg').textContent = rawCoords.length.toLocaleString(); document.getElementById('i-nodes').textContent = result.visited.toLocaleString(); document.getElementById('i-exec').textContent = `${execMs}ms`; document.getElementById('infoBar').style.display = 'block'; const stepList = document.getElementById('stepList'); stepList.innerHTML = ''; navSteps = []; navIndex = 0; stepVoiceStage = {}; let stepNum = 0; for (const seg of segments) { for (const step of seg.steps) { navSteps.push(step); stepNum++; const div = document.createElement('div'); div.className = 'step'; div.innerHTML = `<div class="step-num">${String(stepNum).padStart(2, '0')}</div><div class="step-icon">${ICONS[step.type] || '↑'}</div><div class="step-body"><div class="step-instr">${step.instruction}</div><div class="step-meta">${fmtDist(step.distance * 1000)} · ${fmtDur(step.duration)} · ${step.name !== '-' ? step.name : 'Unnamed road'}</div></div>`; const wp = step.way_points; div.addEventListener('click', () => { if (wp && wp.length >= 2) { const c1 = coords.get(wp[0]), c2 = coords.get(wp[1] || wp[0]); if (c1 && c2) map.fitBounds([[c1[0], c1[1]], [c2[0], c2[1]]], { padding: [60, 60], maxZoom: 17 }); } speakText(`${cleanInstruction(step.instruction)}. Continue for ${fmtDist(step.distance * 1000)}.`); }); stepList.appendChild(div); } } document.getElementById('stepBadge').textContent = `${stepNum} STEPS`; const n = rawCoords.length; const descs = { dijkstra: `<b>DIJKSTRA'S ALGORITHM</b><br>Expands minimum-cost frontier via <span class="tag">Min-Heap PQ</span>. Guarantees globally optimal path. Explored <b>${result.visited.toLocaleString()}</b>/${n.toLocaleString()} nodes. <span class="tag">O((V+E) log V)</span>`, astar: `<b>A* SEARCH ALGORITHM</b><br>Combines Dijkstra's cost with a <span class="tag">Haversine heuristic</span> to guide toward destination. Usually explores fewer nodes. Explored <b>${result.visited.toLocaleString()}</b>/${n.toLocaleString()} nodes.`, bfs: `<b>BFS — BREADTH-FIRST SEARCH</b><br>Finds path with fewest <span class="tag">segments</span>, not minimum distance. Explored <b>${result.visited.toLocaleString()}</b>/${n.toLocaleString()} nodes. <span class="tag">O(V+E)</span>` }; document.getElementById('algoBox').innerHTML = descs[algo]; setStatus(`✓ ${summary.distance.toFixed(2)} km · ${fmtDur(summary.duration)} · ${algoNames[algo]} · ${execMs}ms`, 'ok'); if (voiceEnabled) speakText(`Route ready. ${summary.distance.toFixed(1)} kilometers. ${fmtDur(summary.duration)}.`); if (window.innerWidth <= 1000) autoOpenSidebar();
             } catch (err) { setStatus(`✕ ${err.message}`, 'err'); console.error(err); } document.getElementById('findBtn').disabled = false;
         }
         function clearAll() { stopLiveNavigation();[routeLayer, straightLayer, startMarker, endMarker, gpsMarker, userTrailLayer].forEach(l => { if (l) map.removeLayer(l); }); routeLayer = straightLayer = startMarker = endMarker = gpsMarker = userTrailLayer = null; startCoords = endCoords = null; navSteps = []; navIndex = 0; stepVoiceStage = {}; routeLatLngs = []; window.speechSynthesis.cancel(); document.getElementById('startInp').value = ''; document.getElementById('endInp').value = ''; document.getElementById('infoBar').style.display = 'none'; document.getElementById('stepBadge').textContent = '0 STEPS'; document.getElementById('stepList').innerHTML = '<div class="empty-state"><div class="icon">🗺</div><p>Set origin &amp; destination,<br>then hit <b>▶ ROUTE</b><br>to compute the optimal path.</p></div>'; document.getElementById('algoBox').innerHTML = '<b>DIJKSTRA\'S ALGORITHM</b><br>Explores nodes by always expanding the lowest-cost frontier via a <span class="tag">Min-Heap PQ</span>. Guarantees globally optimal path. <span class="tag">O((V+E) log V)</span>'; clickState = 'start'; setStatus('Cleared. Enter new locations or click the map.'); }
