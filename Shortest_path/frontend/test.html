@@ -434,6 +434,12 @@
             flex: 1;
         }
 
+        #map {
+            flex: 1;
+            transition: transform 0.6s ease;
+            transform-origin: center center;
+        }
+
         [data-theme="dark"] .leaflet-tile {
             filter: invert(1) hue-rotate(180deg) brightness(.82) contrast(1.05) saturate(.55);
         }
@@ -879,6 +885,103 @@
             }
         }
 
+        /* ─── LIVE NAVIGATION BANNER ─── */
+        #navBanner {
+            display: none;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 10px 14px;
+            background: linear-gradient(135deg, var(--blue), #1d4ed8);
+            color: white;
+            border-bottom: 1px solid rgba(255, 255, 255, .08);
+            z-index: 950;
+            flex-shrink: 0;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, .18);
+        }
+
+        #navBanner.active {
+            display: flex;
+        }
+
+        .nav-main {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            min-width: 0;
+            flex: 1;
+        }
+
+        .nav-icon {
+            width: 42px;
+            height: 42px;
+            border-radius: 12px;
+            background: rgba(255, 255, 255, .14);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+            font-weight: bold;
+            flex-shrink: 0;
+        }
+
+        .nav-texts {
+            min-width: 0;
+            flex: 1;
+        }
+
+        .nav-primary {
+            font-family: 'Syne', sans-serif;
+            font-size: 14px;
+            font-weight: 800;
+            line-height: 1.2;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .nav-secondary {
+            font-size: 11px;
+            opacity: .92;
+            margin-top: 3px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .nav-meta {
+            display: flex;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+
+        .nav-chip {
+            background: rgba(255, 255, 255, .14);
+            padding: 8px 10px;
+            border-radius: 10px;
+            font-size: 11px;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+
+        @media(max-width:650px) {
+            #navBanner {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 8px;
+            }
+
+            .nav-meta {
+                width: 100%;
+                justify-content: space-between;
+            }
+
+            .nav-primary,
+            .nav-secondary {
+                white-space: normal;
+            }
+        }
+
         @media(max-width:380px) {
             select {
                 font-size: 10px;
@@ -945,9 +1048,25 @@
         </div>
     </div>
 
+    <!-- STATUS BAR -->
     <div id="statusBar">
-        <div id="spinner"></div><span id="statusTxt">Click map to set origin &amp; destination, or type above. Use 📍
-            for GPS.</span>
+        <div id="spinner"></div>
+        <div id="statusTxt">Ready. Set origin and destination.</div>
+    </div>
+
+    <!-- LIVE NAV BANNER -->
+    <div id="navBanner">
+        <div class="nav-main">
+            <div class="nav-icon" id="navIcon">↑</div>
+            <div class="nav-texts">
+                <div class="nav-primary" id="navPrimary">Navigation not started</div>
+                <div class="nav-secondary" id="navSecondary">Follow the route after starting navigation</div>
+            </div>
+        </div>
+        <div class="nav-meta">
+            <div class="nav-chip" id="navDistChip">—</div>
+            <div class="nav-chip" id="navEtaChip">—</div>
+        </div>
     </div>
 
     <div id="body">
@@ -1014,12 +1133,67 @@
         let watchId = null, liveTracking = false, routeLatLngs = [], userTrail = [], userTrailLayer = null;
         let lastSpokenStep = -1, hasArrived = false, rerouting = false, lastOffRouteWarning = 0;
         let stepVoiceStage = {}, currentLiveCoords = null;
+        let reroutingNow = false;
+        let routeSummary = null;
+        let currentInstructionIndex = 0;
+
+        let lastLivePosition = null;
+        let currentHeading = 0;
+        let mapRotation = 0;
 
         map.on('click', e => { const { lat, lng } = e.latlng; if (clickState === 'start') { setStart([lat, lng], `${lat.toFixed(5)}, ${lng.toFixed(5)}`); clickState = 'end'; setStatus('Origin set. Click map to place destination.'); } else { setEnd([lat, lng], `${lat.toFixed(5)}, ${lng.toFixed(5)}`); clickState = 'start'; setStatus('Destination set — press ▶ ROUTE.'); } });
         function setStart(c, l) { startCoords = c; document.getElementById('startInp').value = l; placeMarker('start', c[0], c[1]); }
         function setEnd(c, l) { endCoords = c; document.getElementById('endInp').value = l; placeMarker('end', c[0], c[1]); }
         function swapLocations() { const [tc, ts, ec, es] = [startCoords, document.getElementById('startInp').value, endCoords, document.getElementById('endInp').value]; startCoords = ec; document.getElementById('startInp').value = es; endCoords = tc; document.getElementById('endInp').value = ts; if (startCoords) placeMarker('start', startCoords[0], startCoords[1]); else { if (startMarker) { map.removeLayer(startMarker); startMarker = null; } } if (endCoords) placeMarker('end', endCoords[0], endCoords[1]); else { if (endMarker) { map.removeLayer(endMarker); endMarker = null; } } }
-        function gpsIcon() { return L.divIcon({ className: '', html: `<div style="position:relative;width:24px;height:24px"><div style="position:absolute;inset:0;border-radius:50%;background:rgba(59,130,246,.2);border:2px solid #3b82f6;animation:gps-pulse 1.6s ease-out infinite"></div><div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:10px;height:10px;border-radius:50%;background:#3b82f6;border:2px solid #fff;box-shadow:0 1px 8px rgba(59,130,246,.8)"></div></div>`, iconSize: [24, 24], iconAnchor: [12, 12] }); }
+        function gpsArrowIcon(heading = 0) {
+            return L.divIcon({
+                className: '',
+                html: `
+        <div style="
+            position: relative;
+            width: 44px;
+            height: 44px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        ">
+            <div style="
+                position:absolute;
+                width:44px;
+                height:44px;
+                border-radius:50%;
+                background:rgba(59,130,246,.15);
+                border:2px solid rgba(59,130,246,.35);
+                animation:gps-pulse 1.6s ease-out infinite;
+            "></div>
+
+            <div style="
+                width: 0;
+                height: 0;
+                border-left: 11px solid transparent;
+                border-right: 11px solid transparent;
+                border-bottom: 24px solid #3b82f6;
+                transform: rotate(${heading}deg);
+                transform-origin: center 75%;
+                filter: drop-shadow(0 2px 8px rgba(59,130,246,.8));
+            "></div>
+
+            <div style="
+                position:absolute;
+                width:8px;
+                height:8px;
+                border-radius:50%;
+                background:#fff;
+                bottom:10px;
+                left:50%;
+                transform:translateX(-50%);
+            "></div>
+        </div>
+        `,
+                iconSize: [44, 44],
+                iconAnchor: [22, 22]
+            });
+        }
         function useMyLocation() { if (!navigator.geolocation) { setStatus('Geolocation not supported.', 'err'); return; } const btn = document.getElementById('gpsBtn'); btn.classList.add('locating'); btn.textContent = '⟳'; setStatus('Acquiring location…', '', true); navigator.geolocation.getCurrentPosition(async pos => { btn.classList.remove('locating'); btn.textContent = '📍'; const { latitude: lat, longitude: lon, accuracy } = pos.coords; let label = `${lat.toFixed(5)}, ${lon.toFixed(5)}`; try { const r = await fetch(`${ORS_BASE}/geocode/reverse?api_key=${ORS_KEY}&point.lat=${lat}&point.lon=${lon}&size=1`); if (r.ok) { const d = await r.json(); if (d.features && d.features[0]) label = d.features[0].properties.label || label; } } catch (_) { } setStart([lat, lon], label); map.setView([lat, lon], 14); if (gpsMarker) map.removeLayer(gpsMarker); gpsMarker = L.marker([lat, lon], { icon: gpsIcon() }).bindPopup(`<b>Your location</b><br><small>±${Math.round(accuracy)}m</small>`).addTo(map); setStatus(`📍 Located (±${Math.round(accuracy)}m) — set as origin.`, 'ok'); }, err => { btn.classList.remove('locating'); btn.textContent = '📍'; const m = { 1: 'Permission denied.', 2: 'Location unavailable.', 3: 'Timed out.' }; setStatus(m[err.code] || 'Could not get location.', 'err'); }, { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }); }
         function placeMarker(type, lat, lon) { const color = type === 'start' ? '#22c55e' : '#ff5c1a'; const ic = L.divIcon({ className: '', html: `<div style="width:15px;height:15px;border-radius:50%;background:${color};border:3px solid rgba(255,255,255,.9);box-shadow:0 2px 10px rgba(0,0,0,.6)"></div>`, iconSize: [15, 15], iconAnchor: [7, 7] }); if (type === 'start') { if (startMarker) map.removeLayer(startMarker); startMarker = L.marker([lat, lon], { icon: ic }).bindTooltip('<b>ORIGIN</b>').addTo(map); } else { if (endMarker) map.removeLayer(endMarker); endMarker = L.marker([lat, lon], { icon: ic }).bindTooltip('<b>DESTINATION</b>').addTo(map); } }
         function toggleTheme() { const isDark = document.documentElement.getAttribute('data-theme') === 'dark'; document.documentElement.setAttribute('data-theme', isDark ? 'light' : 'dark'); document.getElementById('themeBtn').textContent = isDark ? '🌙' : '☀️'; }
@@ -1028,17 +1202,217 @@
         window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
         function cleanInstruction(t) { return t.replace(/<[^>]*>/g, '').replace(/\bonto\b/gi, 'on to').replace(/\brd\b/gi, 'road').replace(/\bst\b/gi, 'street').replace(/\bave\b/gi, 'avenue').replace(/\s+/g, ' ').trim(); }
         function nextVoiceStep() { if (!navSteps.length) { setStatus('No route available.', 'err'); return; } navIndex++; if (navIndex >= navSteps.length) { speakText('You have reached the final step.'); setStatus('No more steps.', 'warn'); return; } highlightCurrentStep(navIndex); const s = navSteps[navIndex]; speakText(`${cleanInstruction(s.instruction)}. Continue for ${fmtDist(s.distance * 1000)}.`); }
-        function startLiveNavigation() { if (liveTracking) { stopLiveNavigation(); setStatus('Navigation stopped.', 'warn'); speakText('Navigation stopped.'); document.getElementById('navBtn').textContent = '🧭 NAVIGATION'; return; } if (!routeLatLngs.length || !navSteps.length) { setStatus('Please generate a route first.', 'err'); return; } if (!navigator.geolocation) { setStatus('Geolocation not supported.', 'err'); return; } stopLiveNavigation(); liveTracking = true; navIndex = 0; lastSpokenStep = -1; hasArrived = false; stepVoiceStage = {}; userTrail = []; document.getElementById('navBtn').textContent = '⏹ STOP NAV'; if (userTrailLayer) { map.removeLayer(userTrailLayer); userTrailLayer = null; } setStatus('Live navigation started…', 'ok'); speakText('Live navigation started.'); watchId = navigator.geolocation.watchPosition(pos => updateLivePosition(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy), err => setStatus('GPS error: ' + err.message, 'err'), { enableHighAccuracy: true, maximumAge: 1000, timeout: 10000 }); }
-        function stopLiveNavigation() { if (watchId !== null) { navigator.geolocation.clearWatch(watchId); watchId = null; } liveTracking = false; document.getElementById('navBtn').textContent = '🧭 NAVIGATION'; }
-        function updateLivePosition(lat, lon, accuracy) { if (!liveTracking) return; if (gpsMarker) map.removeLayer(gpsMarker); gpsMarker = L.marker([lat, lon], { icon: gpsIcon() }).bindPopup(`<b>Live location</b><br><small>±${Math.round(accuracy)}m</small>`).addTo(map); userTrail.push([lat, lon]); if (userTrailLayer) map.removeLayer(userTrailLayer); userTrailLayer = L.polyline(userTrail, { color: '#22c55e', weight: 4, opacity: .8 }).addTo(map); map.setView([lat, lon], 17); checkNavigationProgress(lat, lon); }
+        function startLiveNavigation() {
+            if (liveTracking) { stopLiveNavigation(); setStatus('Navigation stopped.', 'warn'); speakText('Navigation stopped.'); document.getElementById('navBtn').textContent = '🧭 NAVIGATION'; return; } if (!routeLatLngs.length || !navSteps.length) { setStatus('Please generate a route first.', 'err'); return; } if (!navigator.geolocation) { setStatus('Geolocation not supported.', 'err'); return; } stopLiveNavigation(); liveTracking = true; navIndex = 0; lastSpokenStep = -1; hasArrived = false; stepVoiceStage = {}; userTrail = []; document.getElementById('navBtn').textContent = '⏹ STOP NAV'; if (userTrailLayer) { map.removeLayer(userTrailLayer); userTrailLayer = null; } setStatus('Live navigation started…', 'ok'); speakText('Live navigation started.'); showNavBanner();
+
+            if (navSteps.length > 0) {
+                const first = navSteps[0];
+                updateNavBanner(
+                    cleanInstruction(first.instruction),
+                    first.name !== '-' ? first.name : 'Continue on route',
+                    ICONS[first.type] || '↑',
+                    fmtDist(first.distance * 1000),
+                    routeSummary ? fmtDur(routeSummary.duration) : '—'
+                );
+            }
+            watchId = navigator.geolocation.watchPosition(pos => updateLivePosition(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy), err => setStatus('GPS error: ' + err.message, 'err'), { enableHighAccuracy: true, maximumAge: 1000, timeout: 10000 });
+        }
+        function stopLiveNavigation() {
+            if (watchId !== null) {
+                navigator.geolocation.clearWatch(watchId);
+                watchId = null;
+            }
+            liveTracking = false;
+            document.getElementById('navBtn').textContent = '🧭 NAVIGATION';
+            hideNavBanner();
+
+            // Reset map rotation
+            document.getElementById('map').style.transform = 'rotate(0deg)';
+        }
+        function updateLivePosition(lat, lon, accuracy) {
+            if (!liveTracking) return;
+
+            // Calculate heading from previous position
+            if (lastLivePosition) {
+                const [prevLat, prevLon] = lastLivePosition;
+                const moveDist = distanceMeters(prevLat, prevLon, lat, lon);
+
+                if (moveDist > 3) { // avoid shaky heading when standing still
+                    currentHeading = calculateHeading(prevLat, prevLon, lat, lon);
+                }
+            }
+
+            lastLivePosition = [lat, lon];
+
+            if (gpsMarker) map.removeLayer(gpsMarker);
+            gpsMarker = L.marker([lat, lon], {
+                icon: gpsArrowIcon(currentHeading)
+            }).bindPopup(`<b>Live location</b><br><small>±${Math.round(accuracy)}m</small>`).addTo(map);
+
+            userTrail.push([lat, lon]);
+            if (userTrailLayer) map.removeLayer(userTrailLayer);
+
+            userTrailLayer = L.polyline(userTrail, {
+                color: '#22c55e',
+                weight: 4,
+                opacity: .8
+            }).addTo(map);
+
+            map.setView([lat, lon], 17);
+
+            // Rotate map based on movement direction
+            rotateMapToHeading(currentHeading);
+
+            checkNavigationProgress(lat, lon);
+        }
         function distanceToStepEnd(uLat, uLon, step) { if (!step.way_points || step.way_points.length < 2) return Infinity; const ep = step.way_points[1]; if (!routeLatLngs[ep]) return Infinity; const [sLat, sLon] = routeLatLngs[ep]; return distanceMeters(uLat, uLon, sLat, sLon); }
-        function handleStepVoiceGuidance(uLat, uLon) { if (navIndex >= navSteps.length) return; const step = navSteps[navIndex]; const key = `step_${navIndex}`; if (!stepVoiceStage[key]) stepVoiceStage[key] = { intro: false, m100: false, m50: false, now: false }; const st = stepVoiceStage[key]; const spoken = cleanInstruction(step.instruction); const dist = distanceToStepEnd(uLat, uLon, step); setStatus(`Next: ${spoken} in ${fmtDist(dist)}`, 'ok'); if (!st.intro) { speakText(`${spoken}. Continue for ${fmtDist(step.distance * 1000)}.`); highlightCurrentStep(navIndex); st.intro = true; return; } if (dist <= 100 && dist > 50 && !st.m100) { speakText(`In 100 meters, ${spoken}`); st.m100 = true; return; } if (dist <= 50 && dist > 15 && !st.m50) { speakText(`In 50 meters, ${spoken}`); st.m50 = true; return; } if (dist <= 15 && !st.now) { speakText(`${spoken} now`); st.now = true; return; } }
+        function handleStepVoiceGuidance(uLat, uLon) {
+            if (navIndex >= navSteps.length) return;
+
+            const step = navSteps[navIndex];
+            const key = `step_${navIndex}`;
+
+            if (!stepVoiceStage[key]) {
+                stepVoiceStage[key] = {
+                    intro: false,
+                    m100: false,
+                    m50: false,
+                    now: false
+                };
+            }
+
+            const st = stepVoiceStage[key];
+            const spoken = cleanInstruction(step.instruction);
+            const dist = distanceToStepEnd(uLat, uLon, step);
+
+            // Live banner update
+            const remainingEta = routeSummary ? fmtDur(Math.max(0, routeSummary.duration - (navIndex * 30))) : '—';
+
+            updateNavBanner(
+                spoken,
+                step.name !== '-' ? step.name : 'Continue on route',
+                ICONS[step.type] || '↑',
+                fmtDist(dist),
+                remainingEta
+            );
+
+            setStatus(`Next: ${spoken} in ${fmtDist(dist)}`, 'ok');
+
+            if (!st.intro) {
+                speakText(`${spoken}. Continue for ${fmtDist(step.distance * 1000)}.`);
+                highlightCurrentStep(navIndex);
+                st.intro = true;
+                return;
+            }
+
+            if (dist <= 100 && dist > 50 && !st.m100) {
+                speakText(`In 100 meters, ${spoken}`);
+                st.m100 = true;
+                return;
+            }
+
+            if (dist <= 50 && dist > 15 && !st.m50) {
+                speakText(`In 50 meters, ${spoken}`);
+                st.m50 = true;
+                return;
+            }
+
+            if (dist <= 15 && !st.now) {
+                speakText(`${spoken} now`);
+                st.now = true;
+                return;
+            }
+        }
         async function autoReroute(uLat, uLon) { if (rerouting || !endCoords) return; rerouting = true; setStatus('Off route. Re-routing…', 'warn'); speakText('You are off route. Re-routing now.'); try { startCoords = [uLat, uLon]; document.getElementById('startInp').value = `${uLat.toFixed(5)}, ${uLon.toFixed(5)}`; placeMarker('start', uLat, uLon); navIndex = 0; lastSpokenStep = -1; stepVoiceStage = {}; hasArrived = false; await findPath(); setTimeout(() => { if (liveTracking) speakText('New route ready.'); }, 1200); } catch (err) { console.error('Reroute failed:', err); setStatus('Re-routing failed.', 'err'); } rerouting = false; }
-        function checkNavigationProgress(uLat, uLon) { if (!routeLatLngs.length || !navSteps.length || hasArrived) return; currentLiveCoords = [uLat, uLon]; const { minDist } = nearestRoutePointIndex(uLat, uLon, routeLatLngs); if (minDist > 60) { const now = Date.now(); if (now - lastOffRouteWarning > 8000) { lastOffRouteWarning = now; autoReroute(uLat, uLon); } return; } const destDist = distanceToDestination(uLat, uLon); if (destDist < 25) { hasArrived = true; stopLiveNavigation(); setStatus('You have arrived!', 'ok'); speakText('You have arrived at your destination.'); return; } handleStepVoiceGuidance(uLat, uLon); if (navIndex < navSteps.length) { const step = navSteps[navIndex]; if (shouldAdvanceStep(uLat, uLon, step)) { navIndex++; highlightCurrentStep(navIndex); if (navIndex < navSteps.length) { const nx = navSteps[navIndex]; setTimeout(() => speakText(`Next: ${cleanInstruction(nx.instruction)}`), 1000); } } }; }
+        function checkNavigationProgress(uLat, uLon) {
+            if (!routeLatLngs.length || !navSteps.length || hasArrived) return;
+
+            currentLiveCoords = [uLat, uLon];
+
+            // Check if user is off-route
+            const { minDist } = nearestRoutePointIndex(uLat, uLon, routeLatLngs);
+            if (minDist > 60) {
+                const now = Date.now();
+                if (now - lastOffRouteWarning > 8000) {
+                    lastOffRouteWarning = now;
+                    autoReroute(uLat, uLon);
+                }
+                return;
+            }
+
+            // Check if destination reached
+            const destDist = distanceToDestination(uLat, uLon);
+            if (destDist < 25) {
+                hasArrived = true;
+
+                updateNavBanner(
+                    'You have arrived',
+                    'Destination reached successfully',
+                    '🏁',
+                    '0 m',
+                    '0 min'
+                );
+
+                setStatus('You have arrived!', 'ok');
+                speakText('You have arrived at your destination.');
+
+                setTimeout(() => stopLiveNavigation(), 2500);
+                return;
+            }
+
+            // Voice guidance + banner updates
+            handleStepVoiceGuidance(uLat, uLon);
+
+            // Step auto advance
+            if (navIndex < navSteps.length) {
+                const step = navSteps[navIndex];
+
+                if (shouldAdvanceStep(uLat, uLon, step)) {
+                    navIndex++;
+                    highlightCurrentStep(navIndex);
+
+                    if (navIndex < navSteps.length) {
+                        const nx = navSteps[navIndex];
+
+                        updateNavBanner(
+                            cleanInstruction(nx.instruction),
+                            nx.name !== '-' ? nx.name : 'Continue on route',
+                            ICONS[nx.type] || '↑',
+                            fmtDist(nx.distance * 1000),
+                            routeSummary ? fmtDur(routeSummary.duration) : '—'
+                        );
+
+                        setTimeout(() => {
+                            speakText(`Next: ${cleanInstruction(nx.instruction)}`);
+                        }, 1000);
+                    }
+                }
+            }
+        }
         function shouldAdvanceStep(uLat, uLon, step) { if (!step.way_points || step.way_points.length < 2) return false; const ep = step.way_points[1]; if (!routeLatLngs[ep]) return false; const [sLat, sLon] = routeLatLngs[ep]; return distanceMeters(uLat, uLon, sLat, sLon) < 30; }
         function highlightCurrentStep(idx) { document.querySelectorAll('.step').forEach((el, i) => { el.style.background = i === idx ? 'rgba(59,130,246,.15)' : ''; el.style.borderLeft = i === idx ? '3px solid #3b82f6' : ''; }); }
         function haversine(la1, lo1, la2, lo2) { const R = 6371, dL = (la2 - la1) * Math.PI / 180, dO = (lo2 - lo1) * Math.PI / 180; const a = Math.sin(dL / 2) ** 2 + Math.cos(la1 * Math.PI / 180) * Math.cos(la2 * Math.PI / 180) * Math.sin(dO / 2) ** 2; return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)); }
         function distanceMeters(la1, lo1, la2, lo2) { return haversine(la1, lo1, la2, lo2) * 1000; }
+        function calculateHeading(lat1, lon1, lat2, lon2) {
+            const toRad = deg => deg * Math.PI / 180;
+            const toDeg = rad => rad * 180 / Math.PI;
+
+            const dLon = toRad(lon2 - lon1);
+            lat1 = toRad(lat1);
+            lat2 = toRad(lat2);
+
+            const y = Math.sin(dLon) * Math.cos(lat2);
+            const x = Math.cos(lat1) * Math.sin(lat2) -
+                Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
+
+            let brng = toDeg(Math.atan2(y, x));
+            return (brng + 360) % 360;
+        }
+        function rotateMapToHeading(heading) {
+            const mapEl = document.getElementById('map');
+            mapRotation = -heading;
+            mapEl.style.transform = `rotate(${mapRotation}deg)`;
+        }
         function nearestRoutePointIndex(uLat, uLon, route) { let minDist = Infinity, nearestIndex = 0; for (let i = 0; i < route.length; i++) { const [lat, lon] = route[i]; const d = distanceMeters(uLat, uLon, lat, lon); if (d < minDist) { minDist = d; nearestIndex = i; } } return { nearestIndex, minDist }; }
         function distanceToDestination(uLat, uLon) { if (!endCoords) return Infinity; return distanceMeters(uLat, uLon, endCoords[0], endCoords[1]); }
         class MinHeap { constructor() { this.h = []; } push(p, v) { this.h.push([p, v]); this._up(this.h.length - 1); } pop() { const t = this.h[0], l = this.h.pop(); if (this.h.length) { this.h[0] = l; this._down(0); } return t; } get size() { return this.h.length; } _up(i) { while (i > 0) { const p = (i - 1) >> 1; if (this.h[p][0] > this.h[i][0]) { [this.h[p], this.h[i]] = [this.h[i], this.h[p]]; i = p; } else break; } } _down(i) { const n = this.h.length; while (true) { let s = i, l = 2 * i + 1, r = 2 * i + 2; if (l < n && this.h[l][0] < this.h[s][0]) s = l; if (r < n && this.h[r][0] < this.h[s][0]) s = r; if (s !== i) { [this.h[s], this.h[i]] = [this.h[i], this.h[s]]; i = s; } else break; } } }
@@ -1055,7 +1429,27 @@
         function fmtDist(m) { return m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.round(m)} m`; }
         function fmtDur(s) { const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60); if (h > 0) return `${h}h ${m}m`; if (m > 0) return `${m} min`; return `${Math.round(s)}s`; }
         const ICONS = { 0: '🏁', 1: '↑', 2: '↗', 3: '→', 4: '↘', 5: '↓', 6: '↙', 7: '←', 8: '↖', 10: '⤴', 11: '⤵', 12: '🔄', 13: '↑', 14: '⛴', 15: '⛳' };
-        async function findPath() { const startTxt = document.getElementById('startInp').value.trim(); const endTxt = document.getElementById('endInp').value.trim(); const algo = document.getElementById('algoSel').value; const mode = document.getElementById('modeSel').value; const pref = document.getElementById('prefSel').value; if (!startTxt || !endTxt) { setStatus('Enter both origin and destination.', 'err'); return; } document.getElementById('findBtn').disabled = true; window.speechSynthesis.cancel(); stopLiveNavigation(); document.getElementById('infoBar').style.display = 'none'; if (routeLayer) { map.removeLayer(routeLayer); routeLayer = null; } if (straightLayer) { map.removeLayer(straightLayer); straightLayer = null; } try { setStatus('Geocoding locations…', '', true); if (!startCoords) { startCoords = await geocodeFallback(startTxt); placeMarker('start', startCoords[0], startCoords[1]); } if (!endCoords) { endCoords = await geocodeFallback(endTxt); placeMarker('end', endCoords[0], endCoords[1]); } const [sLat, sLon] = startCoords, [eLat, eLon] = endCoords; const crow = haversine(sLat, sLon, eLat, eLon); straightLayer = L.polyline([[sLat, sLon], [eLat, eLon]], { color: '#ff5c1a', weight: 2, dashArray: '6 5', opacity: .4 }).addTo(map); map.fitBounds([[sLat, sLon], [eLat, eLon]], { padding: [60, 60] }); setStatus(`Crow-flies: ${crow.toFixed(1)} km — Fetching road route…`, '', true); const orsBody = { coordinates: [[sLon, sLat], [eLon, eLat]], preference: pref, geometry: true, instructions: true, units: 'km', language: 'en' }; const orsRes = await callOrs(orsBody, mode); const orsData = await orsRes.json(); const feature = orsData.features[0]; const summary = feature.properties.summary; const segments = feature.properties.segments; const rawCoords = feature.geometry.coordinates; const algoNames = { dijkstra: 'Dijkstra', astar: 'A*', bfs: 'BFS' }; setStatus(`${rawCoords.length.toLocaleString()} pts — running ${algoNames[algo]}…`, '', true); const adj = new Map(), coords = new Map(); for (let i = 0; i < rawCoords.length; i++) { const [lon, lat] = rawCoords[i]; coords.set(i, [lat, lon]); adj.set(i, []); } for (let i = 0; i < rawCoords.length - 1; i++) { const [aL, aO] = coords.get(i), [bL, bO] = coords.get(i + 1); const d = haversine(aL, aO, bL, bO); adj.get(i).push([i + 1, d]); adj.get(i + 1).push([i, d]); } const t0 = performance.now(); let result; if (algo === 'dijkstra') result = dijkstra(adj, 0, rawCoords.length - 1); else if (algo === 'astar') result = astar(adj, 0, rawCoords.length - 1, coords); else result = bfs(adj, 0, rawCoords.length - 1); const execMs = (performance.now() - t0).toFixed(2); const path = reconstructPath(result.prev, 0, rawCoords.length - 1); if (!path) throw new Error('Could not reconstruct path.'); const latLngs = path.map(i => coords.get(i)).map(([lat, lon]) => [lat, lon]); routeLatLngs = latLngs; routeLayer = L.polyline(latLngs, { color: '#3b82f6', weight: 5, opacity: .9, lineJoin: 'round', lineCap: 'round' }).addTo(map); map.fitBounds(routeLayer.getBounds(), { padding: [50, 50] }); document.getElementById('i-algo').textContent = algoNames[algo]; document.getElementById('i-dist').textContent = `${summary.distance.toFixed(2)} km`; document.getElementById('i-dur').textContent = fmtDur(summary.duration); document.getElementById('i-seg').textContent = rawCoords.length.toLocaleString(); document.getElementById('i-nodes').textContent = result.visited.toLocaleString(); document.getElementById('i-exec').textContent = `${execMs}ms`; document.getElementById('infoBar').style.display = 'block'; const stepList = document.getElementById('stepList'); stepList.innerHTML = ''; navSteps = []; navIndex = 0; stepVoiceStage = {}; let stepNum = 0; for (const seg of segments) { for (const step of seg.steps) { navSteps.push(step); stepNum++; const div = document.createElement('div'); div.className = 'step'; div.innerHTML = `<div class="step-num">${String(stepNum).padStart(2, '0')}</div><div class="step-icon">${ICONS[step.type] || '↑'}</div><div class="step-body"><div class="step-instr">${step.instruction}</div><div class="step-meta">${fmtDist(step.distance * 1000)} · ${fmtDur(step.duration)} · ${step.name !== '-' ? step.name : 'Unnamed road'}</div></div>`; const wp = step.way_points; div.addEventListener('click', () => { if (wp && wp.length >= 2) { const c1 = coords.get(wp[0]), c2 = coords.get(wp[1] || wp[0]); if (c1 && c2) map.fitBounds([[c1[0], c1[1]], [c2[0], c2[1]]], { padding: [60, 60], maxZoom: 17 }); } speakText(`${cleanInstruction(step.instruction)}. Continue for ${fmtDist(step.distance * 1000)}.`); }); stepList.appendChild(div); } } document.getElementById('stepBadge').textContent = `${stepNum} STEPS`; const n = rawCoords.length; const descs = { dijkstra: `<b>DIJKSTRA'S ALGORITHM</b><br>Expands minimum-cost frontier via <span class="tag">Min-Heap PQ</span>. Guarantees globally optimal path. Explored <b>${result.visited.toLocaleString()}</b>/${n.toLocaleString()} nodes. <span class="tag">O((V+E) log V)</span>`, astar: `<b>A* SEARCH ALGORITHM</b><br>Combines Dijkstra's cost with a <span class="tag">Haversine heuristic</span> to guide toward destination. Usually explores fewer nodes. Explored <b>${result.visited.toLocaleString()}</b>/${n.toLocaleString()} nodes.`, bfs: `<b>BFS — BREADTH-FIRST SEARCH</b><br>Finds path with fewest <span class="tag">segments</span>, not minimum distance. Explored <b>${result.visited.toLocaleString()}</b>/${n.toLocaleString()} nodes. <span class="tag">O(V+E)</span>` }; document.getElementById('algoBox').innerHTML = descs[algo]; setStatus(`✓ ${summary.distance.toFixed(2)} km · ${fmtDur(summary.duration)} · ${algoNames[algo]} · ${execMs}ms`, 'ok'); if (voiceEnabled) speakText(`Route ready. ${summary.distance.toFixed(1)} kilometers. ${fmtDur(summary.duration)}.`); if (window.innerWidth <= 1000) autoOpenSidebar(); } catch (err) { setStatus(`✕ ${err.message}`, 'err'); console.error(err); } document.getElementById('findBtn').disabled = false; }
+        function showNavBanner() {
+            document.getElementById('navBanner').classList.add('active');
+        }
+
+        function hideNavBanner() {
+            document.getElementById('navBanner').classList.remove('active');
+        }
+
+        function updateNavBanner(primary, secondary = '', icon = '↑', dist = '—', eta = '—') {
+            document.getElementById('navPrimary').textContent = primary || 'Continue';
+            document.getElementById('navSecondary').textContent = secondary || '';
+            document.getElementById('navIcon').textContent = icon || '↑';
+            document.getElementById('navDistChip').textContent = dist || '—';
+            document.getElementById('navEtaChip').textContent = eta || '—';
+        }
+        async function findPath() {
+            const startTxt = document.getElementById('startInp').value.trim(); const endTxt = document.getElementById('endInp').value.trim(); const algo = document.getElementById('algoSel').value; const mode = document.getElementById('modeSel').value; const pref = document.getElementById('prefSel').value; if (!startTxt || !endTxt) { setStatus('Enter both origin and destination.', 'err'); return; } document.getElementById('findBtn').disabled = true; window.speechSynthesis.cancel(); stopLiveNavigation(); document.getElementById('infoBar').style.display = 'none'; if (routeLayer) { map.removeLayer(routeLayer); routeLayer = null; } if (straightLayer) { map.removeLayer(straightLayer); straightLayer = null; } try {
+                setStatus('Geocoding locations…', '', true); if (!startCoords) { startCoords = await geocodeFallback(startTxt); placeMarker('start', startCoords[0], startCoords[1]); } if (!endCoords) { endCoords = await geocodeFallback(endTxt); placeMarker('end', endCoords[0], endCoords[1]); } const [sLat, sLon] = startCoords, [eLat, eLon] = endCoords; const crow = haversine(sLat, sLon, eLat, eLon); straightLayer = L.polyline([[sLat, sLon], [eLat, eLon]], { color: '#ff5c1a', weight: 2, dashArray: '6 5', opacity: .4 }).addTo(map); map.fitBounds([[sLat, sLon], [eLat, eLon]], { padding: [60, 60] }); setStatus(`Crow-flies: ${crow.toFixed(1)} km — Fetching road route…`, '', true); const orsBody = { coordinates: [[sLon, sLat], [eLon, eLat]], preference: pref, geometry: true, instructions: true, units: 'km', language: 'en' }; const orsRes = await callOrs(orsBody, mode); const orsData = await orsRes.json(); const feature = orsData.features[0]; const summary = feature.properties.summary; const segments = feature.properties.segments; const rawCoords = feature.geometry.coordinates;
+                routeGeometry = rawCoords.map(([lon, lat]) => [lat, lon]); routeSummary = summary; const algoNames = { dijkstra: 'Dijkstra', astar: 'A*', bfs: 'BFS' }; setStatus(`${rawCoords.length.toLocaleString()} pts — running ${algoNames[algo]}…`, '', true); const adj = new Map(), coords = new Map(); for (let i = 0; i < rawCoords.length; i++) { const [lon, lat] = rawCoords[i]; coords.set(i, [lat, lon]); adj.set(i, []); } for (let i = 0; i < rawCoords.length - 1; i++) { const [aL, aO] = coords.get(i), [bL, bO] = coords.get(i + 1); const d = haversine(aL, aO, bL, bO); adj.get(i).push([i + 1, d]); adj.get(i + 1).push([i, d]); } const t0 = performance.now(); let result; if (algo === 'dijkstra') result = dijkstra(adj, 0, rawCoords.length - 1); else if (algo === 'astar') result = astar(adj, 0, rawCoords.length - 1, coords); else result = bfs(adj, 0, rawCoords.length - 1); const execMs = (performance.now() - t0).toFixed(2); const path = reconstructPath(result.prev, 0, rawCoords.length - 1); if (!path) throw new Error('Could not reconstruct path.'); const latLngs = path.map(i => coords.get(i)).map(([lat, lon]) => [lat, lon]); routeLatLngs = latLngs; routeLayer = L.polyline(latLngs, { color: '#3b82f6', weight: 5, opacity: .9, lineJoin: 'round', lineCap: 'round' }).addTo(map); map.fitBounds(routeLayer.getBounds(), { padding: [50, 50] }); document.getElementById('i-algo').textContent = algoNames[algo]; document.getElementById('i-dist').textContent = `${summary.distance.toFixed(2)} km`; document.getElementById('i-dur').textContent = fmtDur(summary.duration); document.getElementById('i-seg').textContent = rawCoords.length.toLocaleString(); document.getElementById('i-nodes').textContent = result.visited.toLocaleString(); document.getElementById('i-exec').textContent = `${execMs}ms`; document.getElementById('infoBar').style.display = 'block'; const stepList = document.getElementById('stepList'); stepList.innerHTML = ''; navSteps = []; navIndex = 0; stepVoiceStage = {}; let stepNum = 0; for (const seg of segments) { for (const step of seg.steps) { navSteps.push(step); stepNum++; const div = document.createElement('div'); div.className = 'step'; div.innerHTML = `<div class="step-num">${String(stepNum).padStart(2, '0')}</div><div class="step-icon">${ICONS[step.type] || '↑'}</div><div class="step-body"><div class="step-instr">${step.instruction}</div><div class="step-meta">${fmtDist(step.distance * 1000)} · ${fmtDur(step.duration)} · ${step.name !== '-' ? step.name : 'Unnamed road'}</div></div>`; const wp = step.way_points; div.addEventListener('click', () => { if (wp && wp.length >= 2) { const c1 = coords.get(wp[0]), c2 = coords.get(wp[1] || wp[0]); if (c1 && c2) map.fitBounds([[c1[0], c1[1]], [c2[0], c2[1]]], { padding: [60, 60], maxZoom: 17 }); } speakText(`${cleanInstruction(step.instruction)}. Continue for ${fmtDist(step.distance * 1000)}.`); }); stepList.appendChild(div); } } document.getElementById('stepBadge').textContent = `${stepNum} STEPS`; const n = rawCoords.length; const descs = { dijkstra: `<b>DIJKSTRA'S ALGORITHM</b><br>Expands minimum-cost frontier via <span class="tag">Min-Heap PQ</span>. Guarantees globally optimal path. Explored <b>${result.visited.toLocaleString()}</b>/${n.toLocaleString()} nodes. <span class="tag">O((V+E) log V)</span>`, astar: `<b>A* SEARCH ALGORITHM</b><br>Combines Dijkstra's cost with a <span class="tag">Haversine heuristic</span> to guide toward destination. Usually explores fewer nodes. Explored <b>${result.visited.toLocaleString()}</b>/${n.toLocaleString()} nodes.`, bfs: `<b>BFS — BREADTH-FIRST SEARCH</b><br>Finds path with fewest <span class="tag">segments</span>, not minimum distance. Explored <b>${result.visited.toLocaleString()}</b>/${n.toLocaleString()} nodes. <span class="tag">O(V+E)</span>` }; document.getElementById('algoBox').innerHTML = descs[algo]; setStatus(`✓ ${summary.distance.toFixed(2)} km · ${fmtDur(summary.duration)} · ${algoNames[algo]} · ${execMs}ms`, 'ok'); if (voiceEnabled) speakText(`Route ready. ${summary.distance.toFixed(1)} kilometers. ${fmtDur(summary.duration)}.`); if (window.innerWidth <= 1000) autoOpenSidebar();
+            } catch (err) { setStatus(`✕ ${err.message}`, 'err'); console.error(err); } document.getElementById('findBtn').disabled = false;
+        }
         function clearAll() { stopLiveNavigation();[routeLayer, straightLayer, startMarker, endMarker, gpsMarker, userTrailLayer].forEach(l => { if (l) map.removeLayer(l); }); routeLayer = straightLayer = startMarker = endMarker = gpsMarker = userTrailLayer = null; startCoords = endCoords = null; navSteps = []; navIndex = 0; stepVoiceStage = {}; routeLatLngs = []; window.speechSynthesis.cancel(); document.getElementById('startInp').value = ''; document.getElementById('endInp').value = ''; document.getElementById('infoBar').style.display = 'none'; document.getElementById('stepBadge').textContent = '0 STEPS'; document.getElementById('stepList').innerHTML = '<div class="empty-state"><div class="icon">🗺</div><p>Set origin &amp; destination,<br>then hit <b>▶ ROUTE</b><br>to compute the optimal path.</p></div>'; document.getElementById('algoBox').innerHTML = '<b>DIJKSTRA\'S ALGORITHM</b><br>Explores nodes by always expanding the lowest-cost frontier via a <span class="tag">Min-Heap PQ</span>. Guarantees globally optimal path. <span class="tag">O((V+E) log V)</span>'; clickState = 'start'; setStatus('Cleared. Enter new locations or click the map.'); }
         function setStatus(msg, cls = '', loading = false) { const bar = document.getElementById('statusBar'); bar.className = ''; if (cls) bar.classList.add(cls); document.getElementById('statusTxt').textContent = msg; document.getElementById('spinner').style.display = loading ? 'block' : 'none'; }
         function toggleSidebar() { const sb = document.getElementById('sidebar'), ov = document.getElementById('sidebarOverlay'), btn = document.getElementById('sidebarToggle'); const isOpen = sb.classList.toggle('open'); ov.classList.toggle('visible', isOpen); btn.textContent = isOpen ? '✕ CLOSE' : '🗺 DIRECTIONS'; setTimeout(() => map.invalidateSize(), 310); }
