@@ -865,6 +865,7 @@
             }
         }
 
+
         /* ══ MOBILE ≤ 650px — THE KEY FIX ══ */
         @media(max-width:650px) {
             #topbar {
@@ -989,6 +990,47 @@
                 bottom: 16px;
                 padding: 10px 16px;
                 font-size: 12px;
+            }
+        }
+
+        /* FULL SCREEN MAP BUTTON - MOBILE ONLY */
+        #mapFullscreenBtn {
+            display: none;
+            position: fixed;
+            bottom: 16px;
+            left: 16px;
+            z-index: 2100;
+            width: 52px;
+            height: 52px;
+            border: none;
+            border-radius: 50%;
+            background: var(--blue);
+            color: #fff;
+            font-size: 22px;
+            font-weight: bold;
+            box-shadow: 0 4px 24px rgba(59, 130, 246, .45);
+            cursor: pointer;
+            transition: all .2s ease;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #mapFullscreenBtn:hover {
+            transform: translateY(-2px);
+        }
+
+        #mapFullscreenBtn.active {
+            background: var(--accent);
+        }
+
+        /* show only on mobile when navigation starts */
+        body.nav-mode #mapFullscreenBtn {
+            display: flex;
+        }
+
+        @media (min-width: 651px) {
+            #mapFullscreenBtn {
+                display: none !important;
             }
         }
 
@@ -1127,6 +1169,35 @@
                 font-size: 17px;
             }
         }
+
+        /* MOBILE FULL SCREEN MAP MODE */
+        body.map-fullscreen #topbar,
+        body.map-fullscreen #statusBar,
+        body.map-fullscreen #navBanner,
+        body.map-fullscreen #sidebar,
+        body.map-fullscreen #sidebarToggle,
+        body.map-fullscreen #routeCards {
+            display: none !important;
+        }
+
+        body.map-fullscreen #body {
+            position: fixed;
+            inset: 0;
+            z-index: 3000;
+            display: block;
+        }
+
+        body.map-fullscreen #map {
+            width: 100vw;
+            height: 100dvh;
+        }
+
+        body.map-fullscreen #mapFullscreenBtn {
+            display: flex !important;
+            z-index: 4000;
+            bottom: 16px;
+            left: 16px;
+        }
     </style>
 </head>
 
@@ -1261,7 +1332,7 @@
 
     <div id="sidebarOverlay" onclick="closeSidebar()"></div>
     <button id="sidebarToggle" onclick="toggleSidebar()">🗺 DIRECTIONS</button>
-
+    <button id="mapFullscreenBtn" onclick="toggleMapFullscreen()" title="Full Screen Map">⛶</button>
     <script>
         const ORS_KEY = 'eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjZjZDRiMzVmYWU0OTQ0NGE5ZDYxM2JhODlkZTI0MmQzIiwiaCI6Im11cm11cjY0In0=';
         const ORS_BASE = 'https://api.openrouteservice.org';
@@ -1351,6 +1422,7 @@
         function cleanInstruction(t) { return t.replace(/<[^>]*>/g, '').replace(/\bonto\b/gi, 'on to').replace(/\brd\b/gi, 'road').replace(/\bst\b/gi, 'street').replace(/\bave\b/gi, 'avenue').replace(/\s+/g, ' ').trim(); }
         function nextVoiceStep() { if (!navSteps.length) { setStatus('No route available.', 'err'); return; } navIndex++; if (navIndex >= navSteps.length) { speakText('You have reached the final step.'); setStatus('No more steps.', 'warn'); return; } highlightCurrentStep(navIndex); const s = navSteps[navIndex]; speakText(`${cleanInstruction(s.instruction)}. Continue for ${fmtDist(s.distance * 1000)}.`); }
         function startLiveNavigation() {
+            document.body.classList.add("nav-mode");
             if (liveTracking) { stopLiveNavigation(); setStatus('Navigation stopped.', 'warn'); speakText('Navigation stopped.'); document.getElementById('navBtn').textContent = '🧭 NAVIGATION'; return; } if (!routeLatLngs.length || !navSteps.length) { setStatus('Please generate a route first.', 'err'); return; } if (!navigator.geolocation) { setStatus('Geolocation not supported.', 'err'); return; } stopLiveNavigation(); liveTracking = true; navIndex = 0; lastSpokenStep = -1; hasArrived = false; stepVoiceStage = {}; userTrail = []; document.getElementById('navBtn').textContent = '⏹ STOP NAV'; if (userTrailLayer) { map.removeLayer(userTrailLayer); userTrailLayer = null; } setStatus('Live navigation started…', 'ok'); speakText('Live navigation started.'); showNavBanner();
 
             if (navSteps.length > 0) {
@@ -1956,10 +2028,36 @@
             document.getElementById('routeCards').innerHTML = '';
             document.getElementById('stepList').innerHTML = '<div class="empty-state"><div class="icon">🗺</div><p>Set origin &amp; destination,<br>then hit <b>▶ ROUTE</b><br>to compute the optimal path.</p></div>';
             document.getElementById('algoBox').innerHTML = '<b>DIJKSTRA\'S ALGORITHM</b><br>Explores nodes by always expanding the lowest-cost frontier via a <span class="tag">Min-Heap PQ</span>. Guarantees globally optimal path. <span class="tag">O((V+E) log V)</span>';
+            document.body.classList.remove("nav-mode");
+            document.body.classList.remove("map-fullscreen");
+
+            const fsBtn = document.getElementById("mapFullscreenBtn");
+            fsBtn.classList.remove("active");
+            fsBtn.innerHTML = "⛶";
             clickState = 'start'; setStatus('Cleared. Enter new locations or click the map.');
+
         }
         function setStatus(msg, cls = '', loading = false) { const bar = document.getElementById('statusBar'); bar.className = ''; if (cls) bar.classList.add(cls); document.getElementById('statusTxt').textContent = msg; document.getElementById('spinner').style.display = loading ? 'block' : 'none'; }
         function toggleSidebar() { const sb = document.getElementById('sidebar'), ov = document.getElementById('sidebarOverlay'), btn = document.getElementById('sidebarToggle'); const isOpen = sb.classList.toggle('open'); ov.classList.toggle('visible', isOpen); btn.textContent = isOpen ? '✕ CLOSE' : '🗺 DIRECTIONS'; setTimeout(() => map.invalidateSize(), 310); }
+        let isMapFullscreen = false;
+
+        function toggleMapFullscreen() {
+            if (window.innerWidth > 650) return; // mobile only
+
+            isMapFullscreen = !isMapFullscreen;
+            document.body.classList.toggle("map-fullscreen", isMapFullscreen);
+
+            const btn = document.getElementById("mapFullscreenBtn");
+            btn.classList.toggle("active", isMapFullscreen);
+            btn.innerHTML = isMapFullscreen ? "🡼" : "⛶";
+
+            // important: refresh Leaflet map after layout change
+            setTimeout(() => {
+                if (typeof map !== "undefined") {
+                    map.invalidateSize();
+                }
+            }, 300);
+        }
         function closeSidebar() { document.getElementById('sidebar').classList.remove('open'); document.getElementById('sidebarOverlay').classList.remove('visible'); document.getElementById('sidebarToggle').textContent = '🗺 DIRECTIONS'; setTimeout(() => map.invalidateSize(), 310); }
         function autoOpenSidebar() { if (!document.getElementById('sidebar').classList.contains('open')) { document.getElementById('sidebar').classList.add('open'); document.getElementById('sidebarOverlay').classList.add('visible'); document.getElementById('sidebarToggle').textContent = '✕ CLOSE'; setTimeout(() => map.invalidateSize(), 310); } }
         (function () { const sb = document.getElementById('sidebar'); let sY = 0; sb.addEventListener('touchstart', e => { sY = e.touches[0].clientY; }, { passive: true }); sb.addEventListener('touchend', e => { if (e.changedTouches[0].clientY - sY > 60) closeSidebar(); }, { passive: true }); })();
