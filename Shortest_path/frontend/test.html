@@ -557,87 +557,92 @@
             color: var(--blue);
         }
 
-        /* ROUTE CARDS CONTAINER */
-        #routeCards {
+        .route-cards {
             position: absolute;
-            left: 0;
-            right: 0;
-            bottom: 14px;
-            /* move cards much lower */
-            z-index: 999;
-            display: none;
-            overflow-x: auto;
-            overflow-y: hidden;
-            white-space: nowrap;
-            padding: 0 12px;
-            scrollbar-width: none;
-            -webkit-overflow-scrolling: touch;
+            /* Anchor to bottom-left of map, above zoom controls */
+            bottom: 30px;
+            left: 12px;
+            display: flex;
+            flex-direction: column;
+            /* stack vertically, tiny footprint */
+            gap: 8px;
+            z-index: 1200;
+            max-width: 200px;
+            /* narrow — doesn't eat into map */
             pointer-events: auto;
         }
 
-        #routeCards::-webkit-scrollbar {
-            display: none;
-        }
-
-        /* CARD */
         .route-card {
-            display: inline-block;
-            vertical-align: top;
-            min-width: 155px;
-            max-width: 170px;
-            background: rgba(10, 14, 28, 0.92);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 16px;
+            width: 100%;
+            background: rgba(11, 11, 15, 0.88);
+            border: 1px solid rgba(255, 255, 255, 0.09);
+            border-radius: 12px;
             padding: 10px 12px;
-            margin-right: 10px;
-            color: #fff;
-            box-shadow: 0 8px 24px rgba(0, 0, 0, .32);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
             cursor: pointer;
-            transition: all .25s ease;
-            white-space: normal;
+            transition: all 0.2s ease;
+            color: #e8e6e1;
             backdrop-filter: blur(10px);
             -webkit-backdrop-filter: blur(10px);
         }
 
-        .route-card.active {
-            border: 2px solid #3b82f6;
-            box-shadow: 0 0 0 3px rgba(59, 130, 246, .12), 0 10px 28px rgba(0, 0, 0, .34);
+        .route-card:hover {
+            border-color: rgba(255, 255, 255, 0.2);
+            background: rgba(20, 20, 28, 0.94);
         }
 
-        /* TOP */
-        .route-top {
+        .route-card.active {
+            border: 1.5px solid #3b82f6;
+            background: rgba(14, 22, 42, 0.95);
+        }
+
+        /* Compact internal layout */
+        .route-card .route-top {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 8px;
+            margin-bottom: 4px;
         }
 
-        .route-name {
-            font-size: 13px;
-            font-weight: 700;
-        }
 
-        .route-badge {
-            font-size: 10px;
-            font-weight: 700;
-            padding: 4px 8px;
-            border-radius: 999px;
-            background: rgba(245, 158, 11, 0.15);
-            color: #fbbf24;
-            border: 1px solid rgba(245, 158, 11, 0.28);
-        }
-
-        /* INFO */
-        .route-time {
-            font-size: 80px;
-        }
-
-        .route-distance {
-            font-size: 12px;
-        }
-
-        .route-desc {
+        .route-card .route-name {
+            font-family: 'Syne', sans-serif;
             font-size: 11px;
+            font-weight: 800;
+            letter-spacing: 0.5px;
+            color: #e8e6e1;
+        }
+
+        .route-card .route-badge {
+            font-size: 9px;
+            padding: 2px 6px;
+            border-radius: 20px;
+            background: rgba(255, 255, 255, 0.08);
+            color: #f59e0b;
+            font-family: 'Syne', sans-serif;
+            font-weight: 700;
+        }
+
+        /* Big time number — smaller than before */
+        .route-card .route-time {
+            font-size: 20px;
+            font-weight: 800;
+            font-family: 'Syne', sans-serif;
+            line-height: 1.1;
+            color: #fff;
+            margin-bottom: 2px;
+        }
+
+        .route-card .route-distance {
+            font-size: 11px;
+            color: #9997a0;
+            margin-bottom: 0;
+            /* remove bottom gap — drop desc on mobile */
+        }
+
+        /* Hide verbose description — saves space */
+        .route-card .route-desc {
+            display: none;
         }
 
         #sidebarTitle {
@@ -811,8 +816,8 @@
         #sidebarToggle {
             display: none;
             position: fixed;
-            bottom: 16px;
-            right: 16px;
+            bottom: 22px;
+            right: 22px;
             z-index: 2000;
             background: var(--accent);
             color: #fff;
@@ -1096,24 +1101,30 @@
             }
         }
 
+        /* ─── MOBILE override ─── */
         @media (max-width: 768px) {
             .route-cards {
-                left: 0;
-                right: 0;
-                bottom: 86px;
-                /* keeps it just above DIRECTIONS button */
-                transform: none;
-                width: 100%;
-                padding: 0 12px;
+                /* Bottom of screen, horizontal row above FAB */
+                bottom: 72px;
+                left: 50%;
+                transform: translateX(-50%);
+                flex-direction: row;
+                max-width: 92vw;
+                width: max-content;
+                gap: 8px;
                 overflow-x: auto;
-                overflow-y: hidden;
-                white-space: nowrap;
+                padding-bottom: 2px;
             }
 
             .route-card {
-                min-width: 165px;
-                max-width: 180px;
+                min-width: 130px;
+                max-width: 150px;
                 flex-shrink: 0;
+                padding: 8px 10px;
+            }
+
+            .route-card .route-time {
+                font-size: 17px;
             }
         }
     </style>
