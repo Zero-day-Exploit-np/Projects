@@ -142,6 +142,25 @@ function gpsArrowIcon(heading = 0) {
     iconAnchor: [22, 22],
   });
 }
+
+function gpsIcon() {
+  return L.divIcon({
+    className: "",
+    html: `
+        <div style="position:relative;width:24px;height:24px">
+            <div style="position:absolute;inset:0;border-radius:50%;
+                background:rgba(59,130,246,.2);border:2px solid #3b82f6;
+                animation:gps-pulse 1.6s ease-out infinite"></div>
+            <div style="position:absolute;top:50%;left:50%;
+                transform:translate(-50%,-50%);width:10px;height:10px;
+                border-radius:50%;background:#3b82f6;border:2px solid #fff;
+                box-shadow:0 1px 8px rgba(59,130,246,.8)"></div>
+        </div>`,
+    iconSize: [24, 24],
+    iconAnchor: [12, 12],
+  });
+}
+
 function useMyLocation() {
   if (!navigator.geolocation) {
     setStatus("Geolocation not supported.", "err");
@@ -245,12 +264,22 @@ function toggleTheme() {
 // function toggleVoice() { voiceEnabled = !voiceEnabled; const btn = document.getElementById('voiceBtn'); btn.classList.toggle('active', voiceEnabled); btn.textContent = voiceEnabled ? '🔊' : '🔇'; setStatus(voiceEnabled ? 'Voice enabled.' : 'Voice disabled.', voiceEnabled ? 'ok' : 'warn'); if (voiceEnabled) speakText('Voice guidance enabled.'); else window.speechSynthesis.cancel(); }
 function toggleVoice() {
   const btn = document.getElementById("voiceBtn");
-  btn.classList.toggle("active");
 
-  const isActive = btn.classList.contains("active");
-  btn.innerHTML = isActive
-    ? '<i class="fa-solid fa-volume-xmark"></i>'
-    : '<i class="fa-solid fa-volume-high"></i>';
+  voiceEnabled = !voiceEnabled;
+  btn.classList.toggle("active", !voiceEnabled);
+
+  btn.innerHTML = voiceEnabled
+    ? '<i class="fa-solid fa-volume-high"></i>'
+    : '<i class="fa-solid fa-volume-xmark"></i>';
+
+  setStatus(
+    voiceEnabled ? "Voice enabled." : "Voice disabled.",
+    voiceEnabled ? "ok" : "warn",
+  );
+
+  if (!voiceEnabled) {
+    window.speechSynthesis.cancel();
+  }
 }
 function speakText(text) {
   if (!voiceEnabled || !("speechSynthesis" in window)) return;
@@ -329,6 +358,9 @@ function startLiveNavigation() {
   hasArrived = false;
   stepVoiceStage = {};
   userTrail = [];
+  lastLivePosition = null;
+  smoothedHeading = 0;
+  currentHeading = 0;
 
   document.getElementById("navBtn").innerHTML =
     '<i class="fa-solid fa-stop"></i> STOP NAV';
@@ -354,15 +386,51 @@ function startLiveNavigation() {
     );
   }
 
-  watchId = navigator.geolocation.watchPosition(
-    (pos) =>
-      updateLivePosition(
-        pos.coords.latitude,
-        pos.coords.longitude,
-        pos.coords.accuracy,
-      ),
-    (err) => setStatus("GPS error: " + err.message, "err"),
-    { enableHighAccuracy: true, maximumAge: 1000, timeout: 10000 },
+  navigator.geolocation.getCurrentPosition(
+    async (pos) => {
+      const lat = pos.coords.latitude;
+      const lon = pos.coords.longitude;
+      const accuracy = pos.coords.accuracy;
+
+      // Immediately show real current position
+      updateLivePosition(lat, lon, accuracy);
+
+      // If user is far from typed start, reroute from live location
+      if (endCoords) {
+        const distFromStart = startCoords
+          ? distanceMeters(lat, lon, startCoords[0], startCoords[1])
+          : Infinity;
+
+        if (distFromStart > 100) {
+          startCoords = [lat, lon];
+          document.getElementById("startInp").value =
+            `${lat.toFixed(5)}, ${lon.toFixed(5)}`;
+          placeMarker("start", lat, lon);
+
+          setStatus("Using your live location as origin…", "warn", true);
+          await findPath();
+        }
+      }
+
+      watchId = navigator.geolocation.watchPosition(
+        (pos) =>
+          updateLivePosition(
+            pos.coords.latitude,
+            pos.coords.longitude,
+            pos.coords.accuracy,
+          ),
+        (err) => setStatus("GPS error: " + err.message, "err"),
+        { enableHighAccuracy: true, maximumAge: 1000, timeout: 10000 },
+      );
+    },
+    (err) => {
+      setStatus("GPS error: " + err.message, "err");
+    },
+    {
+      enableHighAccuracy: true,
+      timeout: 10000,
+      maximumAge: 0,
+    },
   );
 }
 
@@ -381,10 +449,58 @@ function stopLiveNavigation() {
   // Reset map rotation
   document.getElementById("map").style.transform = "rotate(0deg)";
 }
+// function updateLivePosition(lat, lon, accuracy) {
+//   if (!liveTracking) return;
+
+//   // Calculate movement heading
+//   if (lastLivePosition) {
+//     const [prevLat, prevLon] = lastLivePosition;
+//     const moveDist = distanceMeters(prevLat, prevLon, lat, lon);
+
+//     if (moveDist > 3) {
+//       const rawHeading = calculateHeading(prevLat, prevLon, lat, lon);
+//       currentHeading = smoothHeading(rawHeading);
+//     }
+//   }
+
+//   lastLivePosition = [lat, lon];
+
+//   // Snap user to nearest route point
+//   const [snapLat, snapLon] = snapToRoute(lat, lon);
+//   snappedUserCoords = [snapLat, snapLon];
+
+//   if (gpsMarker) map.removeLayer(gpsMarker);
+
+//   gpsMarker = L.marker([snapLat, snapLon], {
+//     icon: gpsArrowIcon(currentHeading),
+//   })
+//     .bindPopup(
+//       `<b>Live location</b><br><small>±${Math.round(accuracy)}m</small>`,
+//     )
+//     .addTo(map);
+
+//   // Draw smooth trail using snapped route points
+//   userTrail.push([snapLat, snapLon]);
+
+//   if (userTrailLayer) map.removeLayer(userTrailLayer);
+//   userTrailLayer = L.polyline(userTrail, {
+//     color: "#22c55e",
+//     weight: 4,
+//     opacity: 0.85,
+//   }).addTo(map);
+
+//   map.setView([snapLat, snapLon], 17);
+
+//   rotateMapToHeading(currentHeading);
+
+//   // IMPORTANT: navigation logic should still use real GPS
+//   checkNavigationProgress(lat, lon);
+// }
+
 function updateLivePosition(lat, lon, accuracy) {
   if (!liveTracking) return;
 
-  // Calculate movement heading
+  // 1) Calculate movement heading from REAL GPS
   if (lastLivePosition) {
     const [prevLat, prevLon] = lastLivePosition;
     const moveDist = distanceMeters(prevLat, prevLon, lat, lon);
@@ -397,13 +513,20 @@ function updateLivePosition(lat, lon, accuracy) {
 
   lastLivePosition = [lat, lon];
 
-  // Snap user to nearest route point
-  const [snapLat, snapLon] = snapToRoute(lat, lon);
-  snappedUserCoords = [snapLat, snapLon];
+  // 2) Keep real live coords
+  currentLiveCoords = [lat, lon];
 
+  // 3) Snap ONLY for navigation calculations (not for marker display)
+  if (routeLatLngs.length > 0) {
+    snappedUserCoords = snapToRoute(lat, lon);
+  } else {
+    snappedUserCoords = [lat, lon];
+  }
+
+  // 4) Show REAL GPS marker (not snapped marker)
   if (gpsMarker) map.removeLayer(gpsMarker);
 
-  gpsMarker = L.marker([snapLat, snapLon], {
+  gpsMarker = L.marker([lat, lon], {
     icon: gpsArrowIcon(currentHeading),
   })
     .bindPopup(
@@ -411,8 +534,8 @@ function updateLivePosition(lat, lon, accuracy) {
     )
     .addTo(map);
 
-  // Draw smooth trail using snapped route points
-  userTrail.push([snapLat, snapLon]);
+  // 5) Trail should also use REAL movement
+  userTrail.push([lat, lon]);
 
   if (userTrailLayer) map.removeLayer(userTrailLayer);
   userTrailLayer = L.polyline(userTrail, {
@@ -421,11 +544,11 @@ function updateLivePosition(lat, lon, accuracy) {
     opacity: 0.85,
   }).addTo(map);
 
-  map.setView([snapLat, snapLon], 17);
-
+  // 6) Follow real user
+  map.setView([lat, lon], 17);
   rotateMapToHeading(currentHeading);
 
-  // IMPORTANT: navigation logic should still use real GPS
+  // 7) Navigation logic can still use real GPS
   checkNavigationProgress(lat, lon);
 }
 function distanceToStepEnd(uLat, uLon, step) {
@@ -540,6 +663,9 @@ function checkNavigationProgress(uLat, uLon) {
 
   currentLiveCoords = [uLat, uLon];
 
+  const navLat = snappedUserCoords ? snappedUserCoords[0] : uLat;
+  const navLon = snappedUserCoords ? snappedUserCoords[1] : uLon;
+
   // Check if user is off-route
   const { minDist } = nearestRoutePointIndex(uLat, uLon, routeLatLngs);
   if (minDist > 60) {
@@ -552,7 +678,7 @@ function checkNavigationProgress(uLat, uLon) {
   }
 
   // Check if destination reached
-  const destDist = distanceToDestination(uLat, uLon);
+  const destDist = distanceToDestination(navLat, navLon);
   if (destDist < 25) {
     hasArrived = true;
 
@@ -573,20 +699,20 @@ function checkNavigationProgress(uLat, uLon) {
   }
 
   // Voice guidance + banner updates
-  handleStepVoiceGuidance(uLat, uLon);
+  handleStepVoiceGuidance(navLat, navLon);
 
   // Step auto advance
   if (navIndex < navSteps.length) {
     const step = navSteps[navIndex];
 
-    if (shouldAdvanceStep(uLat, uLon, step)) {
+    if (shouldAdvanceStep(navLat, navLon, step)) {
       navIndex++;
       highlightCurrentStep(navIndex);
 
       if (navIndex < navSteps.length) {
         const nx = navSteps[navIndex];
 
-        const remainingRoute = getRemainingRouteDistance(uLat, uLon);
+        const remainingRoute = getRemainingRouteDistance(navLat, navLon);
         const progressPercent =
           totalRouteDistance > 0
             ? Math.min(
@@ -1404,7 +1530,7 @@ function clearAll() {
 
   const fsBtn = document.getElementById("mapFullscreenBtn");
   fsBtn.classList.remove("active");
-  fsBtn.innerHTML = "⛶";
+  fsBtn.innerHTML = '<i class="fa-solid fa-expand"></i>';
   clickState = "start";
   setStatus("Cleared. Enter new locations or click the map.");
 }
@@ -1434,7 +1560,10 @@ function toggleMapFullscreen() {
 
   const btn = document.getElementById("mapFullscreenBtn");
   btn.classList.toggle("active", isMapFullscreen);
-  btn.innerHTML = isMapFullscreen ? "🡼" : "⛶";
+  // btn.innerHTML = isMapFullscreen ? "🡼" : "⛶";
+  btn.innerHTML = isMapFullscreen
+    ? '<i class="fa-solid fa-compress"></i>'
+    : '<i class="fa-solid fa-expand"></i>';
 
   // important: refresh Leaflet map after layout change
   setTimeout(() => {
