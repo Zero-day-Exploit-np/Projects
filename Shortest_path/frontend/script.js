@@ -373,20 +373,6 @@ function stopLiveNavigation() {
   }
 
   liveTracking = false;
-  document.getElementById("navBtn").innerHTML =
-    '<i class="fa-solid fa-location-arrow"></i> NAVIGATION';
-  hideNavBanner();
-
-  // Reset map rotation
-  document.getElementById("map").style.transform = "rotate(0deg)";
-}
-function stopLiveNavigation() {
-  if (watchId !== null) {
-    navigator.geolocation.clearWatch(watchId);
-    watchId = null;
-  }
-
-  liveTracking = false;
   document.body.classList.remove("nav-mode");
   document.getElementById("navBtn").innerHTML =
     '<i class="fa-solid fa-location-arrow"></i> NAVIGATION';
@@ -1215,7 +1201,11 @@ async function findPath() {
     setStatus(`✕ ${err.message}`, "err");
     console.error(err);
   }
+
   document.getElementById("findBtn").disabled = false;
+  if (window.innerWidth <= 650) {
+    document.getElementById("mapFullscreenBtn").style.display = "flex";
+  }
 }
 function updateRouteButtons() {
   document.querySelectorAll(".routeOptBtn").forEach((btn, i) => {
@@ -1410,6 +1400,7 @@ function clearAll() {
     '<b>DIJKSTRA\'S ALGORITHM</b><br>Explores nodes by always expanding the lowest-cost frontier via a <span class="tag">Min-Heap PQ</span>. Guarantees globally optimal path. <span class="tag">O((V+E) log V)</span>';
   document.body.classList.remove("nav-mode");
   document.body.classList.remove("map-fullscreen");
+  document.getElementById("mapFullscreenBtn").style.display = "";
 
   const fsBtn = document.getElementById("mapFullscreenBtn");
   fsBtn.classList.remove("active");
@@ -1436,7 +1427,7 @@ function toggleSidebar() {
 let isMapFullscreen = false;
 
 function toggleMapFullscreen() {
-  if (window.innerWidth > 650) return; // mobile only
+  // if (window.innerWidth > 650) return; // mobile only
 
   isMapFullscreen = !isMapFullscreen;
   document.body.classList.toggle("map-fullscreen", isMapFullscreen);
@@ -1452,6 +1443,7 @@ function toggleMapFullscreen() {
     }
   }, 300);
 }
+
 function closeSidebar() {
   document.getElementById("sidebar").classList.remove("open");
   document.getElementById("sidebarOverlay").classList.remove("visible");

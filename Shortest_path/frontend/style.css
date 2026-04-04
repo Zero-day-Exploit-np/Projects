@@ -1013,46 +1013,55 @@
  }
 
  /* FULL SCREEN MAP BUTTON - MOBILE ONLY */
- #mapFullscreenBtn {
-     display: none;
-     position: fixed;
-     bottom: 16px;
-     left: 16px;
-     z-index: 2100;
-     width: 52px;
-     height: 52px;
-     border: none;
-     border-radius: 50%;
-     background: var(--blue);
-     color: #fff;
-     font-size: 22px;
-     font-weight: bold;
-     box-shadow: 0 4px 24px rgba(59, 130, 246, .45);
-     cursor: pointer;
-     transition: all .2s ease;
-     align-items: center;
-     justify-content: center;
- }
+#mapFullscreenBtn {
+    display: none;
+    position: fixed;
+    bottom: 16px;
+    left: 16px;
+    z-index: 2100;
+    width: 52px;
+    height: 52px;
+    border: none;
+    border-radius: 50%;
+    background: var(--blue);
+    color: #fff;
+    font-size: 22px;
+    font-weight: bold;
+    box-shadow: 0 4px 24px rgba(59, 130, 246, .45);
+    cursor: pointer;
+    transition: all .2s ease;
+    align-items: center;
+    justify-content: center;
+}
 
- #mapFullscreenBtn:hover {
-     transform: translateY(-2px);
- }
+#mapFullscreenBtn:hover {
+    transform: translateY(-2px);
+}
 
- #mapFullscreenBtn.active {
-     background: var(--accent);
- }
+#mapFullscreenBtn.active {
+    background: var(--accent);
+}
 
  /* show only on mobile when navigation starts */
- body.nav-mode #mapFullscreenBtn {
-     display: flex;
- }
+@media (max-width: 650px) {
+    #mapFullscreenBtn {
+        display: flex;
+    }
+}
 
- @media (min-width: 651px) {
-     #mapFullscreenBtn {
-         display: none !important;
-     }
- }
+@media (min-width: 651px) {
+    #mapFullscreenBtn {
+        display: none !important;
+    }
+}
 
+/* In fullscreen mode, keep button visible and on top */
+body.map-fullscreen #mapFullscreenBtn {
+    display: flex !important;
+    z-index: 4000;
+    bottom: 16px;
+    left: 16px;
+}
  /* ─── LIVE NAVIGATION BANNER ─── */
  #navBanner {
      display: none;
