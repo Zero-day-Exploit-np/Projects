@@ -1017,7 +1017,10 @@
     display: none;
     position: fixed;
     bottom: 16px;
-    left: 16px;
+    right: 16px;
+    /* changed from left to right */
+    left: auto;
+    /* add this */
     z-index: 2100;
     width: 52px;
     height: 52px;
@@ -1060,7 +1063,8 @@ body.map-fullscreen #mapFullscreenBtn {
     display: flex !important;
     z-index: 4000;
     bottom: 16px;
-    left: 16px;
+    right: 16px;
+    left: auto;
 }
  /* ─── LIVE NAVIGATION BANNER ─── */
  #navBanner {
@@ -1171,32 +1175,50 @@ body.map-fullscreen #mapFullscreenBtn {
      }
  }
 
- /* ─── MOBILE override ─── */
+ /* ─── MOBILE ZOOM CONTROL FIX ─── */
  @media (max-width: 768px) {
-     .route-cards {
-         /* Bottom of screen, horizontal row above FAB */
-         bottom: 72px;
-         left: 50%;
-         transform: translateX(-50%);
-         flex-direction: row;
-         max-width: 92vw;
-         width: max-content;
-         gap: 8px;
-         overflow-x: auto;
-         padding-bottom: 2px;
-     }
 
-     .route-card {
-         min-width: 130px;
-         max-width: 150px;
-         flex-shrink: 0;
-         padding: 8px 10px;
-     }
-
-     .route-card .route-time {
-         font-size: 17px;
+     .leaflet-bottom.leaflet-left .leaflet-control-zoom,
+     .leaflet-left .leaflet-control-zoom {
+         margin-bottom: 90px !important;
+         /* push zoom above floating elements */
+         margin-left: 10px !important;
      }
  }
+
+/* ─── MOBILE ROUTE CARDS FIX ─── */
+@media (max-width: 768px) {
+    .route-cards {
+        position: fixed;
+        bottom: 90px;
+        /* moved higher */
+        left: 50%;
+        transform: translateX(-50%);
+        flex-direction: row;
+        max-width: calc(100vw - 32px);
+        width: auto;
+        gap: 8px;
+        overflow-x: auto;
+        padding: 4px 2px;
+        z-index: 2200;
+        scrollbar-width: none;
+    }
+
+    .route-cards::-webkit-scrollbar {
+        display: none;
+    }
+
+    .route-card {
+        min-width: 130px;
+        max-width: 150px;
+        flex-shrink: 0;
+        padding: 8px 10px;
+    }
+
+    .route-card .route-time {
+        font-size: 17px;
+    }
+}
 
  /* MOBILE FULL SCREEN MAP MODE */
  body.map-fullscreen #topbar,
@@ -1204,7 +1226,7 @@ body.map-fullscreen #mapFullscreenBtn {
  body.map-fullscreen #navBanner,
  body.map-fullscreen #sidebar,
  body.map-fullscreen #sidebarToggle,
- body.map-fullscreen #routeCards {
+ body.map-fullscreen .route-cards {
      display: none !important;
  }
 
