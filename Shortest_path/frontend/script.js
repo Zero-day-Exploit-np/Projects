@@ -261,7 +261,6 @@ function toggleTheme() {
       ? '<i class="fa-solid fa-sun"></i>'
       : '<i class="fa-solid fa-moon"></i>';
 }
-// function toggleVoice() { voiceEnabled = !voiceEnabled; const btn = document.getElementById('voiceBtn'); btn.classList.toggle('active', voiceEnabled); btn.textContent = voiceEnabled ? '🔊' : '🔇'; setStatus(voiceEnabled ? 'Voice enabled.' : 'Voice disabled.', voiceEnabled ? 'ok' : 'warn'); if (voiceEnabled) speakText('Voice guidance enabled.'); else window.speechSynthesis.cancel(); }
 function toggleVoice() {
   const btn = document.getElementById("voiceBtn");
 
@@ -449,53 +448,6 @@ function stopLiveNavigation() {
   // Reset map rotation
   document.getElementById("map").style.transform = "rotate(0deg)";
 }
-// function updateLivePosition(lat, lon, accuracy) {
-//   if (!liveTracking) return;
-
-//   // Calculate movement heading
-//   if (lastLivePosition) {
-//     const [prevLat, prevLon] = lastLivePosition;
-//     const moveDist = distanceMeters(prevLat, prevLon, lat, lon);
-
-//     if (moveDist > 3) {
-//       const rawHeading = calculateHeading(prevLat, prevLon, lat, lon);
-//       currentHeading = smoothHeading(rawHeading);
-//     }
-//   }
-
-//   lastLivePosition = [lat, lon];
-
-//   // Snap user to nearest route point
-//   const [snapLat, snapLon] = snapToRoute(lat, lon);
-//   snappedUserCoords = [snapLat, snapLon];
-
-//   if (gpsMarker) map.removeLayer(gpsMarker);
-
-//   gpsMarker = L.marker([snapLat, snapLon], {
-//     icon: gpsArrowIcon(currentHeading),
-//   })
-//     .bindPopup(
-//       `<b>Live location</b><br><small>±${Math.round(accuracy)}m</small>`,
-//     )
-//     .addTo(map);
-
-//   // Draw smooth trail using snapped route points
-//   userTrail.push([snapLat, snapLon]);
-
-//   if (userTrailLayer) map.removeLayer(userTrailLayer);
-//   userTrailLayer = L.polyline(userTrail, {
-//     color: "#22c55e",
-//     weight: 4,
-//     opacity: 0.85,
-//   }).addTo(map);
-
-//   map.setView([snapLat, snapLon], 17);
-
-//   rotateMapToHeading(currentHeading);
-
-//   // IMPORTANT: navigation logic should still use real GPS
-//   checkNavigationProgress(lat, lon);
-// }
 
 function updateLivePosition(lat, lon, accuracy) {
   if (!liveTracking) return;
