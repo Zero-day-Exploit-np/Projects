@@ -1018,9 +1018,7 @@
     position: fixed;
     bottom: 16px;
     right: 16px;
-    /* changed from left to right */
     left: auto;
-    /* add this */
     z-index: 2100;
     width: 52px;
     height: 52px;
