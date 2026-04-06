@@ -26,7 +26,7 @@ This project integrates Graph Theory with real-time routing APIs to demonstrate 
 * Displays the optimal route between two points
 * Uses real-world road network
 * 
-## 📚 References
+## References
 
 * OpenStreetMap
 * OpenRouteService API
