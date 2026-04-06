@@ -1505,14 +1505,12 @@ function toggleSidebar() {
 let isMapFullscreen = false;
 
 function toggleMapFullscreen() {
-  // if (window.innerWidth > 650) return; // mobile only
 
   isMapFullscreen = !isMapFullscreen;
   document.body.classList.toggle("map-fullscreen", isMapFullscreen);
 
   const btn = document.getElementById("mapFullscreenBtn");
   btn.classList.toggle("active", isMapFullscreen);
-  // btn.innerHTML = isMapFullscreen ? "🡼" : "⛶";
   btn.innerHTML = isMapFullscreen
     ? '<i class="fa-solid fa-compress"></i>'
     : '<i class="fa-solid fa-expand"></i>';
