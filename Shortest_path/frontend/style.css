@@ -578,16 +578,13 @@
 
  .route-cards {
      position: absolute;
-     /* Anchor to bottom-left of map, above zoom controls */
      bottom: 30px;
      left: 12px;
      display: flex;
      flex-direction: column;
-     /* stack vertically, tiny footprint */
      gap: 8px;
      z-index: 1200;
      max-width: 200px;
-     /* narrow — doesn't eat into map */
      pointer-events: auto;
  }
 
@@ -656,7 +653,6 @@
      font-size: 11px;
      color: #9997a0;
      margin-bottom: 0;
-     /* remove bottom gap — drop desc on mobile */
  }
 
  /* Hide verbose description — saves space */
@@ -858,7 +854,6 @@
      transform: translateY(-2px);
  }
 
- /* ══ TABLET ≤ 1000px ══ */
  @media(max-width:1000px) {
      #sidebar {
          position: fixed;
@@ -885,7 +880,6 @@
  }
 
 
- /* ══ MOBILE ≤ 650px — THE KEY FIX ══ */
  @media(max-width:650px) {
      #topbar {
          height: auto;
@@ -1179,7 +1173,6 @@ body.map-fullscreen #mapFullscreenBtn {
      .leaflet-bottom.leaflet-left .leaflet-control-zoom,
      .leaflet-left .leaflet-control-zoom {
          margin-bottom: 90px !important;
-         /* push zoom above floating elements */
          margin-left: 10px !important;
      }
  }
@@ -1189,7 +1182,6 @@ body.map-fullscreen #mapFullscreenBtn {
     .route-cards {
         position: fixed;
         bottom: 90px;
-        /* moved higher */
         left: 50%;
         transform: translateX(-50%);
         flex-direction: row;
